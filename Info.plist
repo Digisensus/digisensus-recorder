@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Digisensus Recorder</string>
+    <key>CFBundleDisplayName</key>
+    <string>Digisensus Recorder</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>© Digisensus, MB · digisensus.com</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.digisensus.recorder</string>
+    <key>CFBundleExecutable</key>
+    <string>DigisensusRecorder</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>101</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <!-- Over-the-air updates (Sparkle). The feed address comes from the app (it follows the
+         Digisensus server and the beta setting). build.sh deletes SUPublicEDKey so local builds
+         never update themselves; package.sh refuses to package without it. -->
+    <key>SUPublicEDKey</key>
+    <string>ao+z4rVHRqn02vrSOv3prdq6BAN/fXRo3zoMTRX3k90=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <!-- The App Store build's "Update in App Store" opens this app's page (UpdateController). -->
+    <key>DSAppStoreID</key>
+    <string>6817626979</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+    <!-- Only standard HTTPS: exempt from export compliance (asked for App Store uploads). -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <!-- A regular app with a Dock icon (Settings › General › "Show in the Dock" can hide it;
+         the app then lives in the menu bar only while no window is open). -->
+    <key>LSUIElement</key>
+    <false/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- The transcription server is user-configured and is typically plain http on the LAN. -->
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Digisensus Recorder sends recordings to the transcription server on your network.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Digisensus Recorder records your microphone into the right channel of the recording.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Digisensus Recorder records the selected app's audio into the left channel of the recording.</string>
+</dict>
+</plist>

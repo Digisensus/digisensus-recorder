@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The `recorder` helper in the App Store build: sandboxed like every executable there.
+         AI agents run it themselves, so it can't inherit the app's sandbox; it reaches the app
+         through the socket in the shared app group. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>L89BH622XY.com.digisensus.recorder</string>
+    </array>
+</dict>
+</plist>

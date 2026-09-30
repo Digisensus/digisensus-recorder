@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Linked into the `recorder` helper (see Package.swift). A sandboxed command-line tool
+         (the App Store build) needs a bundle identifier of its own, or it traps at launch. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.digisensus.recorder.cli</string>
+    <key>CFBundleName</key>
+    <string>recorder</string>
+</dict>
+</plist>
