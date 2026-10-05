@@ -1,0 +1,23 @@
+.DS_Store
+/.build/
+/build/
+/dist/
+/.build-appstore/
+
+# Signing and release secrets stay out of the repo: certificates, provisioning profiles,
+# App Store Connect API keys and the Sparkle private update key.
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+*.provisionprofile
+*.mobileprovision
+AuthKey_*
+*private-key*
+*.pem
+.env
+
+# Digisensus-internal: publishing to our backend and Claude's local notes.
+release.sh
+CLAUDE.md
+CLAUDE.local.md

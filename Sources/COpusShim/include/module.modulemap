@@ -1,0 +1,8 @@
+module COpusShim {
+    umbrella header "COpusShim.h"
+    // Vendored headers the umbrella doesn't need: config_types.h is libogg's non-Apple
+    // fallback (os_types.h skips it on macOS) and the projection API isn't used.
+    exclude header "ogg/config_types.h"
+    exclude header "opus/opus_projection.h"
+    export *
+}

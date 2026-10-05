@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The Mac App Store build (package-appstore.sh). The direct download uses
+         DigisensusRecorder.entitlements and no sandbox. -->
+    <!-- Must match the embedded provisioning profile, or App Store Connect rejects the build
+         for TestFlight (ITMS-90886). -->
+    <key>com.apple.application-identifier</key>
+    <string>L89BH622XY.com.digisensus.recorder</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>L89BH622XY</string>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- Digisensus transcription and summaries, or the user's own servers. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Recordings live in ~/Music/Digisensus Recorder. -->
+    <key>com.apple.security.assets.music.read-write</key>
+    <true/>
+    <!-- Shared with the bundled `recorder` helper: the agent socket lives here. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>L89BH622XY.com.digisensus.recorder</string>
+    </array>
+</dict>
+</plist>
