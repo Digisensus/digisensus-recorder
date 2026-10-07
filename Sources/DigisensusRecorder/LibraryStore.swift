@@ -138,6 +138,7 @@ final class LibraryStore: ObservableObject {
         didSet { UserDefaults.standard.set(autoTranscribe, forKey: "autoTranscribe") }
     }
     @Published private(set) var transcribing: Set<Int64> = []
+    private var transcriptionJobs: [Int64: Task<Void, Never>] = [:]
     @Published private(set) var transcriptionErrors: [Int64: String] = [:]
     @Published private(set) var transcriptRevision = 0
     @Published private(set) var connectionStatus: String?
@@ -168,6 +169,35 @@ final class LibraryStore: ObservableObject {
                 MainActor.assumeIsolated { self?.recordings = recordings }
             })
         syncFolder()
+        resumeTranscriptions()
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(10))
+                self?.resumeTranscriptions()
+            }
+        }
+    }
+
+    static let interrupted = "Transcription was interrupted. Try again."
+    static let tookTooLong = "Transcription did not finish within 2 hours. Try again."
+
+    func resumeTranscriptions() {
+        guard let pending = try? database.pendingTranscriptions() else { return }
+        for recording in pending {
+            guard let id = recording.id else { continue }
+            if let jobID = recording.transcriptJobID, let settings = transcriptionSettings(), settings.provider == .digisensus {
+                transcriptionJobs[id]?.cancel()
+                transcribing.insert(id)
+                let client = TranscriptionClient(settings: settings)
+                transcriptionJobs[id] = Task {
+                    await self.pollJob(jobID, recording: recording, client: client, polls: recording.transcriptJobPolls,
+                                       summarizeAfter: nil)
+                }
+            } else if transcriptionJobs[id] == nil {
+                try? database.setTranscriptStatus(.failed, recordingID: id)
+                transcriptionErrors[id] = Self.interrupted
+            }
+        }
     }
 
     func url(for recording: Recording) -> URL {
@@ -210,31 +240,99 @@ final class LibraryStore: ObservableObject {
 
         let client = TranscriptionClient(settings: settings)
         let file = url(for: recording)
-        let model = settings.model
+        if settings.provider == .digisensus {
+            transcriptionJobs[id] = Task {
+                do {
+                    let job = try await client.submit(file)
+                    try database.setTranscriptJob(id: job.id, startedAt: Date(), recordingID: id)
+                    await pollJob(job.id, recording: recording, client: client, polls: 0, summarizeAfter: summarizeAfter)
+                } catch {
+                    finishTranscription(id, recording: recording, settings: settings, error: error)
+                }
+            }
+            return
+        }
         Task {
             do {
                 let started = Date()
                 let result = try await client.transcribe(file)
-                let segments = result.turns.map {
-                    TranscriptSegment(recordingId: id, channel: $0.channel, startTime: $0.start,
-                                      endTime: $0.end, text: $0.text)
-                }
-                try database.saveTranscript(recordingID: id, segments: segments,
-                                            language: result.language, model: model)
-                Log.write(String(format: "transcribed %@: %d turns in %.1f s", recording.fileName,
-                                 segments.count, Date().timeIntervalSince(started)))
-                if summarizeAfter ?? autoSummarize, aiService != .off, !segments.isEmpty, summarySettings() != nil {
-                    summarize(recording)
-                }
+                try saveTranscription(result, recording: recording, model: settings.model, started: started,
+                                      summarizeAfter: summarizeAfter)
+                finishTranscription(id, recording: recording, settings: settings, error: nil)
             } catch {
-                try? database.setTranscriptStatus(.failed, recordingID: id)
-                transcriptionErrors[id] = error.localizedDescription
-                Log.write("transcription of \(recording.fileName) failed: \(error)")
+                finishTranscription(id, recording: recording, settings: settings, error: error)
             }
-            transcribing.remove(id)
-            transcriptRevision += 1
-            if settings.provider == .digisensus { await account.refresh() }
         }
+    }
+
+    private func pollJob(_ jobID: String, recording: Recording, client: TranscriptionClient, polls startPolls: Int,
+                         summarizeAfter: Bool?) async {
+        guard let id = recording.id else { return }
+        let started = recording.transcriptJobStartedAt ?? Date()
+        var polls = startPolls
+        var hint: Double?
+        while let delay = TranscriptionClient.pollDelay(after: polls) {
+            do {
+                try await Task.sleep(for: .seconds(max(delay, hint ?? 0)))
+            } catch {
+                return
+            }
+            polls += 1
+            try? database.setTranscriptJobPolls(polls, recordingID: id)
+            do {
+                switch try await client.poll(jobID) {
+                case .running(let waitHint):
+                    hint = waitHint
+                case .done(let response):
+                    let result = try await client.finish(response, file: url(for: recording)) { try await client.submitAndWait($0) }
+                    try saveTranscription(result, recording: recording, model: client.settings.model, started: started,
+                                          summarizeAfter: summarizeAfter)
+                    finishTranscription(id, recording: recording, settings: client.settings, error: nil)
+                    return
+                case .failed(let message):
+                    finishTranscription(id, recording: recording, settings: client.settings,
+                                        error: TranscriptionError.server(200, message))
+                    return
+                }
+            } catch is CancellationError {
+                return
+            } catch let error as TranscriptionError {
+                finishTranscription(id, recording: recording, settings: client.settings, error: error)
+                return
+            } catch {
+                Log.write("poll of job \(jobID) failed (\(polls)): \(error)")
+            }
+        }
+        await client.cancel(jobID)
+        finishTranscription(id, recording: recording, settings: client.settings, error: TranscriptionError.server(504, Self.tookTooLong))
+    }
+
+    private func saveTranscription(_ result: TranscriptionResult, recording: Recording, model: String, started: Date,
+                                   summarizeAfter: Bool?) throws {
+        guard let id = recording.id else { return }
+        let segments = result.turns.map {
+            TranscriptSegment(recordingId: id, channel: $0.channel, startTime: $0.start, endTime: $0.end, text: $0.text)
+        }
+        try database.saveTranscript(recordingID: id, segments: segments, language: result.language, model: model)
+        Log.write(String(format: "transcribed %@: %d turns in %.1f s", recording.fileName,
+                         segments.count, Date().timeIntervalSince(started)))
+        if summarizeAfter ?? autoSummarize, aiService != .off, !segments.isEmpty, summarySettings() != nil {
+            summarize(recording)
+        }
+    }
+
+    private func finishTranscription(_ id: Int64, recording: Recording, settings: TranscriptionSettings, error: Error?) {
+        if let error {
+            try? database.setTranscriptStatus(.failed, recordingID: id)
+            let message: String
+            if case TranscriptionError.server(200, let detail) = error { message = detail } else { message = error.localizedDescription }
+            transcriptionErrors[id] = message
+            Log.write("transcription of \(recording.fileName) failed: \(error)")
+        }
+        transcribing.remove(id)
+        transcriptionJobs[id] = nil
+        transcriptRevision += 1
+        if settings.provider == .digisensus { Task { await account.refresh() } }
     }
 
     func summarize(_ recording: Recording) {

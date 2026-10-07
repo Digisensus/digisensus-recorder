@@ -193,7 +193,7 @@ struct CallDetail: View {
                     .font(.system(size: 14, weight: .semibold))
                 ProgressView().progressViewStyle(.linear).tint(Palette.accent)
                 Text(state.isTranscribing
-                     ? "The transcript, summary and tags appear here in a few minutes. You can keep working."
+                     ? "The transcript, summary and tags appear here in a few minutes; a long call takes longer. You can keep working or quit: the app picks the result up when it is back."
                      : "The summary and tags appear here in a moment.")
                     .font(.system(size: 13))
                     .foregroundStyle(Palette.secondary)

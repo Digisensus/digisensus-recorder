@@ -64,4 +64,33 @@ struct AppDatabaseTests {
         #expect(recording.summaryShort == nil)
         #expect(recording.tags == ["Work"], "tags are the user's; they survive a new transcript")
     }
+
+    @Test func transcriptionJobsSurviveARelaunch() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let saved = try database.saveRecording(Recording(
+            fileName: "rec-2026-01-02_10-00-00-Zoom.ogg", startedAt: Date(), duration: 1800, sourceLabel: "Zoom",
+            sourceBundleID: "us.zoom.xos", autoStarted: true, format: "ogg", sizeBytes: 1000,
+            transcriptStatus: .none, fileMissing: false))
+        let id = try #require(saved.id)
+        #expect(try database.pendingTranscriptions().isEmpty)
+
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        try database.setTranscriptJob(id: "job-1", startedAt: started, recordingID: id)
+        try database.setTranscriptJobPolls(42, recordingID: id)
+        let pending = try database.pendingTranscriptions()
+        #expect(pending.count == 1)
+        #expect(pending[0].transcriptStatus == .pending)
+        #expect(pending[0].transcriptJobID == "job-1")
+        #expect(pending[0].transcriptJobStartedAt == started)
+        #expect(pending[0].transcriptJobPolls == 42)
+
+        try database.saveTranscript(recordingID: id, segments: [], language: "lt", model: "parakeet")
+        let done = try #require(try database.recording(id: id))
+        #expect(done.transcriptStatus == .done && done.transcriptJobID == nil && done.transcriptJobPolls == 0)
+        try database.setTranscriptJob(id: "job-2", startedAt: started, recordingID: id)
+        try database.setTranscriptStatus(.failed, recordingID: id)
+        let failed = try #require(try database.recording(id: id))
+        #expect(failed.transcriptJobID == nil && failed.transcriptJobStartedAt == nil)
+        #expect(try database.pendingTranscriptions().isEmpty)
+    }
 }

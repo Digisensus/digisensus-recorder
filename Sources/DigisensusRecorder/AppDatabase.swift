@@ -27,6 +27,9 @@ struct Recording: Codable, Identifiable, Equatable, FetchableRecord, MutablePers
     var summaryTopic: String?
     var summaryPoints: [String]?
     var tags: [String] = []
+    var transcriptJobID: String?
+    var transcriptJobStartedAt: Date?
+    var transcriptJobPolls: Int = 0
 
     static let databaseTableName = "recording"
 
@@ -155,6 +158,14 @@ final class AppDatabase {
             }
         }
 
+        migrator.registerMigration("v4 transcription jobs") { db in
+            try db.alter(table: "recording") { t in
+                t.add(column: "transcriptJobID", .text)
+                t.add(column: "transcriptJobStartedAt", .datetime)
+                t.add(column: "transcriptJobPolls", .integer).notNull().defaults(to: 0)
+            }
+        }
+
         return migrator
     }
 }
@@ -228,6 +239,9 @@ extension AppDatabase {
                 recording.transcriptStatus = .done
                 recording.transcriptLanguage = language
                 recording.transcriptModel = model
+                recording.transcriptJobID = nil
+                recording.transcriptJobStartedAt = nil
+                recording.transcriptJobPolls = 0
                 recording.summaryShort = nil
                 recording.summaryLong = nil
                 recording.summaryModel = nil
@@ -263,7 +277,38 @@ extension AppDatabase {
         try writer.write { db in
             guard var recording = try Recording.fetchOne(db, key: recordingID) else { return }
             recording.transcriptStatus = status
+            if status != .pending {
+                recording.transcriptJobID = nil
+                recording.transcriptJobStartedAt = nil
+                recording.transcriptJobPolls = 0
+            }
             try recording.update(db)
+        }
+    }
+
+    func setTranscriptJob(id jobID: String, startedAt: Date, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID) else { return }
+            recording.transcriptStatus = .pending
+            recording.transcriptJobID = jobID
+            recording.transcriptJobStartedAt = startedAt
+            recording.transcriptJobPolls = 0
+            try recording.update(db)
+        }
+    }
+
+    func setTranscriptJobPolls(_ polls: Int, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID) else { return }
+            recording.transcriptJobPolls = polls
+            try recording.update(db)
+        }
+    }
+
+    func pendingTranscriptions() throws -> [Recording] {
+        try writer.read { db in
+            try Recording.filter(Column("transcriptStatus") == Recording.TranscriptStatus.pending.rawValue)
+                .order(Column("startedAt")).fetchAll(db)
         }
     }
 
