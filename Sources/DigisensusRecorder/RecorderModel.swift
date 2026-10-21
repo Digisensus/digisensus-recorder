@@ -113,7 +113,7 @@ final class RecorderModel: ObservableObject {
         .appendingPathComponent("Digisensus Recorder", isDirectory: true)
 
     init() {
-        LegacyData.copyFromDirectDownloadIfNeeded()
+        let movedFromDirectDownload = LegacyData.copyFromDirectDownloadIfNeeded()
         let defaults = UserDefaults.standard
         if let saved = defaults.string(forKey: "source") {
             switch saved {
@@ -139,6 +139,10 @@ final class RecorderModel: ObservableObject {
         }
         refreshDevices()
         _ = library
+        if movedFromDirectDownload {
+            message = "Your calls and settings came across from the direct download. "
+                + "Sign in again, or re-enter your API keys, in Settings › Transcription & AI."
+        }
         if AppDatabase.shared.isTemporary {
             message = "The library couldn't be opened, so titles, transcripts and summaries made now won't be kept. "
                 + "Recordings are still saved. Quit and reopen Digisensus Recorder to try again."

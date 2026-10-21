@@ -3,32 +3,31 @@ import GRDB
 
 enum LegacyData {
     private static let doneKey = "copiedDirectDownloadData"
-    private static let directService = "com.digisensus.recorder"
+    private static let directPreferences = "Library/Preferences/com.digisensus.recorder.plist"
     private static let databaseFiles = ["recorder.sqlite", "recorder.sqlite-wal", "recorder.sqlite-shm"]
     private static let settingKeys = [
         "onboardingDone", "aiService", "autoRecord", "autoBalance", "removeCrosstalk", "autoTranscribe", "autoSummarize",
-        "mic", "source", "showInDock", "digisensusEmail", "digisensusLastEmail", "meetingNamesWanted", "askedSystemAudio",
+        "mic", "source", "showInDock", "digisensusLastEmail", "meetingNamesWanted", "askedSystemAudio",
         "messagesRead", "messagesNotifiedThrough", "messagesCache",
         "transcriptionProvider", "transcriptionPreset", "transcriptionServer", "transcriptionModel", "transcriptionLanguage",
         "summaryProvider", "summaryPreset", "summaryServer", "summaryModel", "serverAddressesAreAPIRoots",
         "agentAccess", "agentReadArchive", "agentControlRecording",
     ]
 
-    static func copyFromDirectDownloadIfNeeded() {
+    static func copyFromDirectDownloadIfNeeded() -> Bool {
         #if APP_STORE
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: doneKey) else { return }
+        guard !defaults.bool(forKey: doneKey) else { return false }
         defaults.set(true, forKey: doneKey)
-        guard let home = realHome() else { return }
+        guard let home = realHome() else { return false }
         let support = home.appendingPathComponent("Library/Application Support/Digisensus Recorder")
-        guard FileManager.default.fileExists(atPath: support.appendingPathComponent(databaseFiles[0]).path) else { return }
+        guard FileManager.default.fileExists(atPath: support.appendingPathComponent(databaseFiles[0]).path) else { return false }
         Log.write("first launch: copying the library and settings of the direct download")
-        let settings = copySettings(from: home.appendingPathComponent("Library/Preferences/\(directService).plist"))
+        let settings = copySettings(from: home.appendingPathComponent(directPreferences))
         copyLibrary(from: support)
-        copyKeys(signedIn: settings["digisensusEmail"] != nil,
-                 presets: ["transcription", "summary"].compactMap { purpose in
-                     (settings["\(purpose)Preset"] as? String).map { (purpose, $0) }
-                 })
+        return settings["aiService"] as? String != "off"
+        #else
+        return false
         #endif
     }
 
@@ -80,23 +79,5 @@ enum LegacyData {
             Log.write("library copy failed, starting empty: \(error)")
             for name in databaseFiles { try? files.removeItem(at: target.appendingPathComponent(name)) }
         }
-    }
-
-    private static func copyKeys(signedIn: Bool, presets: [(purpose: String, preset: String)]) {
-        var accounts: [String] = []
-        if signedIn { accounts.append("digisensus-device-token") }
-        for purpose in ["transcription", "summary"] {
-            if let preset = presets.first(where: { $0.purpose == purpose })?.preset {
-                accounts.append("\(purpose)-api-key.\(preset)")
-            }
-            accounts.append("\(purpose)-api-key")
-        }
-        var copied = 0
-        for account in accounts {
-            guard let value = Keychain.loginKeychainString(account, service: directService) else { continue }
-            Keychain.set(value, for: account)
-            copied += 1
-        }
-        Log.write("copied \(copied) keychain item(s)")
     }
 }

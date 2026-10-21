@@ -8,11 +8,6 @@ enum Keychain {
         read(baseQuery(account))
     }
 
-    static func loginKeychainString(_ account: String, service: String) -> String? {
-        read([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-              kSecAttrAccount as String: account])
-    }
-
     private static func read(_ base: [String: Any]) -> String? {
         var query = base
         query[kSecReturnData as String] = true

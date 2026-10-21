@@ -19,7 +19,7 @@
     <key>CFBundleShortVersionString</key>
     <string>1.3.0</string>
     <key>CFBundleVersion</key>
-    <string>111</string>
+    <string>112</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <!-- Over-the-air updates (Sparkle). The feed address comes from the app (it follows the
