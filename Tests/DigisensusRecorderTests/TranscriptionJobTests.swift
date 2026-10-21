@@ -21,11 +21,12 @@ final class MockURLProtocol: URLProtocol {
 }
 
 @Suite(.serialized) struct TranscriptionJobTests {
-    private func client() -> TranscriptionClient {
+    private func client(server: String = "https://recorder.example", provider: AIProvider = .digisensus) -> TranscriptionClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         var settings = TranscriptionSettings()
-        settings.server = "https://recorder.example"
+        settings.provider = provider
+        settings.server = server
         settings.apiKey = "drk_test"
         return TranscriptionClient(settings: settings, session: URLSession(configuration: config))
     }
@@ -88,11 +89,21 @@ final class MockURLProtocol: URLProtocol {
         defer { try? FileManager.default.removeItem(at: file) }
         answer(202, #"{"id":"abc","status":"running","poll_interval":10,"audio_seconds":90}"#)
         let job = try await client.submit(file)
-        #expect(job == TranscriptionClient.Job(id: "abc", pollInterval: 10))
+        #expect(job == TranscriptionClient.Job(id: "abc"))
         let request = try #require(MockURLProtocol.requests.last)
         #expect(request.httpMethod == "POST" && request.url?.path == "/v1/audio/transcriptions/jobs")
 
         answer(402, #"{"error":{"code":"insufficient_credits","message":"Today's free Digisensus credit is used up."}}"#)
         await #expect(throws: TranscriptionError.self) { try await client.submit(file) }
+    }
+
+    @Test func connectionCheckReachesModelsUnderAServerAddressEndingInV1() async {
+        let client = client(server: "https://api.openai.com/v1", provider: .custom)
+        answer(401, #"{"error":{"message":"Incorrect API key provided."}}"#)
+        #expect(await client.checkConnection() == "https://api.openai.com/v1 refused the API key.")
+        #expect(MockURLProtocol.requests.last?.url?.absoluteString == "https://api.openai.com/v1/models")
+
+        answer(200, #"{"object":"list","data":[{"id":"whisper-1"}]}"#)
+        #expect(await client.checkConnection() == "Connected; model “whisper-1” is available.")
     }
 }

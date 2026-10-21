@@ -1,11 +1,8 @@
 import Foundation
 
-enum AIProvider: String, CaseIterable, Identifiable {
+enum AIProvider: String {
     case digisensus
     case custom
-
-    var id: String { rawValue }
-    var label: String { self == .digisensus ? "Digisensus" : "Own server" }
 
     static func explainsRefusal(status: Int) -> Bool {
         [401, 402, 403, 426, 429].contains(status)
@@ -21,14 +18,13 @@ extension URLRequest {
 
 @MainActor
 final class DigisensusAccount: ObservableObject {
+    private static let publicServer = URL(string: "https://recorder.digisensus.com")!
     static let server: URL = {
         if let value = ProcessInfo.processInfo.environment["DIGISENSUS_SERVER"], let url = URL(string: value) {
             return url
         }
-        return URL(string: "https://recorder.digisensus.com")!
+        return publicServer
     }()
-    static let trainingNotice = "Only your voice: recordings made with free credit may be used to train speech recognition "
-        + "on your microphone channel, never on other speakers. Turn it off any time; your free credit stays the same."
     static var termsURL: URL { server.appendingPathComponent("tos") }
     static var privacyURL: URL { server.appendingPathComponent("privacy") }
 
@@ -84,7 +80,8 @@ final class DigisensusAccount: ObservableObject {
     @Published private(set) var message: String?
     @Published private(set) var models: [String: [String]] = [:]
 
-    private static let tokenAccount = "digisensus-device-token"
+    private static let tokenAccount = server == publicServer
+        ? "digisensus-device-token" : "digisensus-device-token.\(server.host ?? "")-\(server.port ?? 0)"
     private static let emailKey = "digisensusEmail"
     private var token: String?
     private var pollTask: Task<Void, Never>?
@@ -147,6 +144,7 @@ final class DigisensusAccount: ObservableObject {
                 try await poll(id: id, secret: secret, email: email, expires: expires, interval: interval)
             } catch is CancellationError {
             } catch {
+                guard !Task.isCancelled else { return }
                 state = .signedOut
                 message = error.localizedDescription
             }
@@ -240,7 +238,7 @@ final class DigisensusAccount: ObservableObject {
             }
             models = byKind
         } catch {
-            Log.write("account refresh failed: \(error)")
+            Log.write("account refresh failed: \(Log.describe(error))")
         }
     }
 
@@ -284,7 +282,7 @@ final class DigisensusAccount: ObservableObject {
     private func readReferralConfig(_ json: [String: Any]) {
         guard let info = json["referral"] as? [String: Any] else { return }
         referralTermsVersion = info["terms_version"] as? String
-        referralTermsURL = (info["terms_url"] as? String).flatMap(URL.init(string:))
+        referralTermsURL = (info["terms_url"] as? String).flatMap(URL.web)
         referralReward = info["reward_d"] as? Double ?? referralReward
     }
 
@@ -296,11 +294,11 @@ final class DigisensusAccount: ObservableObject {
         }
         return Referral(agreed: j["agreed"] as? Bool ?? false,
                         termsVersion: j["terms_version"] as? String ?? "",
-                        termsURL: (j["terms_url"] as? String).flatMap(URL.init(string:)),
+                        termsURL: (j["terms_url"] as? String).flatMap(URL.web),
                         reward: j["reward_d"] as? Double ?? 5,
                         maxPerYear: j["max_per_year"] as? Int ?? 20,
                         code: j["code"] as? String,
-                        link: (j["link"] as? String).flatMap(URL.init(string:)),
+                        link: (j["link"] as? String).flatMap(URL.web),
                         friends: friends)
     }
 
@@ -406,7 +404,7 @@ final class DigisensusAccount: ObservableObject {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.app.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         return Reply(status: status, json: json)

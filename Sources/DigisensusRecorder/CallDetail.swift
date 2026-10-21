@@ -9,19 +9,38 @@ final class RecordingDraft: ObservableObject {
     @Published var addingTag = false
     @Published var newTag = ""
     private var pendingSave: Task<Void, Never>?
+    private var pendingAction: (() -> Void)?
+    nonisolated(unsafe) private var quitObserver: NSObjectProtocol?
 
     init(_ recording: Recording) {
         shownTitle = recording.heading
         title = recording.heading
         notes = recording.notes ?? ""
+        quitObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveNow() }
+        }
+    }
+
+    deinit {
+        if let quitObserver { NotificationCenter.default.removeObserver(quitObserver) }
     }
 
     func saveSoon(_ save: @escaping () -> Void) {
         pendingSave?.cancel()
+        pendingAction = save
         pendingSave = Task {
             try? await Task.sleep(for: .seconds(0.8))
-            if !Task.isCancelled { save() }
+            if !Task.isCancelled { saveNow() }
         }
+    }
+
+    func saveNow() {
+        pendingSave?.cancel()
+        pendingSave = nil
+        let action = pendingAction
+        pendingAction = nil
+        action?()
     }
 }
 
@@ -42,7 +61,11 @@ struct CallDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            PlayerView(player: player)
+            if isProcessing {
+                processingNotice
+            } else {
+                PlayerView(player: player)
+            }
             Picker("Show", selection: $navigation.detailTab) {
                 ForEach(AppNavigation.DetailTab.allCases) { Text($0.rawValue).tag($0) }
             }
@@ -58,7 +81,10 @@ struct CallDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             draft.segments = library.segments(of: recording)
-            player.load(library.url(for: recording))
+            if !isProcessing { player.load(library.url(for: recording)) }
+        }
+        .onChange(of: isProcessing) { _, processing in
+            if !processing { player.load(library.url(for: recording)) }
         }
         .onDisappear {
             save()
@@ -74,6 +100,7 @@ struct CallDetail: View {
             }
         }
         .onChange(of: draft.notes) { draft.saveSoon(save) }
+        .onChange(of: draft.title) { draft.saveSoon(save) }
     }
 
     private var header: some View {
@@ -185,8 +212,25 @@ struct CallDetail: View {
         }
     }
 
+    private var isProcessing: Bool { library.processing[recording.rowID] != nil }
+
+    private var processingNotice: some View {
+        HStack(spacing: 12) {
+            ProgressView().controlSize(.small)
+            Text("Processing the recording… playback and transcription are available in a moment.")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .card()
+    }
+
     @ViewBuilder private func progressOrOffer(_ state: CallState) -> some View {
         switch state {
+        case .processing:
+            EmptyView()
         case .transcribing, .summarizing:
             VStack(alignment: .leading, spacing: 10) {
                 Text(state.isTranscribing ? "Transcribing…" : "Summarizing…")

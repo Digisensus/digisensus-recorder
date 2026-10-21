@@ -83,7 +83,7 @@ final class MessageCenter: ObservableObject {
         request.setValue(AppVersion.build, forHTTPHeaderField: "X-App-Build")
         request.setValue(AppDistribution.current.rawValue, forHTTPHeaderField: "X-App-Distribution")
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.app.data(for: request)
             let http = response as? HTTPURLResponse
             switch http?.statusCode {
             case 200:
@@ -140,15 +140,7 @@ final class MessageCenter: ObservableObject {
 
     private func announce(_ list: [BroadcastMessage]) async {
         let center = UNUserNotificationCenter.current()
-        var settings = await center.notificationSettings()
-        if settings.authorizationStatus == .notDetermined {
-            do {
-                _ = try await center.requestAuthorization(options: [.alert, .sound])
-            } catch {
-                Log.write("messages: notification permission: \(error.localizedDescription)")
-            }
-            settings = await center.notificationSettings()
-        }
+        let settings = await center.notificationSettings()
         let allowed = [.authorized, .provisional].contains(settings.authorizationStatus) && settings.alertSetting == .enabled
         guard allowed else {
             Log.write("messages: notifications are off (status \(settings.authorizationStatus.rawValue), "

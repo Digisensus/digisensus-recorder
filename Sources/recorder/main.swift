@@ -21,7 +21,12 @@ func connect() -> Int32? {
     guard descriptor >= 0 else { return nil }
     var address = sockaddr_un()
     address.sun_family = sa_family_t(AF_UNIX)
-    withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: socketPath.utf8) }
+    let path = Array(socketPath.utf8)
+    guard path.count < MemoryLayout.size(ofValue: address.sun_path) else {
+        close(descriptor)
+        return nil
+    }
+    withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path) }
     let result = withUnsafePointer(to: &address) {
         $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
             Darwin.connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -46,7 +51,7 @@ func connectLaunchingIfNeeded() throws -> Int32 {
         usleep(200_000)
         if let descriptor = connect() { return descriptor }
     }
-    throw AppError(message: "Digisensus Recorder isn't accepting agent commands. Open the app, go to AI Agents, "
+    throw AppError(message: "Digisensus Recorder isn't accepting agent commands. Open the app, go to Settings › Advanced › AI agents, "
         + "and turn on “Allow AI agents to control this app”.")
 }
 

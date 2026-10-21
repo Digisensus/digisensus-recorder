@@ -3,18 +3,28 @@ import CoreMedia
 
 enum RecordingFile {
     static let fileExtension = "ogg"
-    static let captureSuffix = ".capture.flac"
+    static let captureSuffix = ".capture.caf"
+    private static let captureSuffixes = [captureSuffix, ".capture.flac"]
 
     static let opusBitrate = 24_000
     static let monoOpusBitrate = opusBitrate / 2
 
     static func captureURL(for recording: URL) -> URL {
-        recording.deletingPathExtension().appendingPathExtension("capture").appendingPathExtension("flac")
+        recording.deletingPathExtension().appendingPathExtension("capture").appendingPathExtension("caf")
+    }
+
+    static func isCapture(_ url: URL) -> Bool {
+        captureSuffixes.contains { url.lastPathComponent.hasSuffix($0) }
     }
 
     static func recordingURL(forCapture capture: URL) -> URL {
-        let name = capture.lastPathComponent.dropLast(captureSuffix.count)
+        let suffix = captureSuffixes.first { capture.lastPathComponent.hasSuffix($0) } ?? captureSuffix
+        let name = capture.lastPathComponent.dropLast(suffix.count)
         return capture.deletingLastPathComponent().appendingPathComponent("\(name).\(fileExtension)")
+    }
+
+    static func partialURL(for recording: URL) -> URL {
+        recording.appendingPathExtension("part")
     }
 
     static func notesURL(for recording: URL) -> URL {
@@ -29,21 +39,29 @@ enum RecordingFile {
 
     static var captureSettings: [String: Any] {
         [
-            AVFormatIDKey: kAudioFormatFLAC,
+            AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: StereoWriter.sampleRate,
             AVNumberOfChannelsKey: 2,
             AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
         ]
     }
 
     static func encodeOpus(from source: URL, to destination: URL, duration: Double? = nil) -> Bool {
+        let partial = partialURL(for: destination)
+        var encoded = 0
         do {
             let file = try AVAudioFile(forReading: source)
             let channels = Int(file.processingFormat.channelCount)
             guard file.processingFormat.sampleRate == OggOpusEncoder.sampleRate, channels > 0,
                   let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 1 << 14)
             else { return false }
-            let encoder = try OggOpusEncoder(url: destination, channels: channels, bitrate: opusBitrate)
+            guard file.length > 0 else {
+                Log.write("opus encode: \(source.lastPathComponent) has no audio")
+                return false
+            }
+            let encoder = try OggOpusEncoder(url: partial, channels: channels, bitrate: opusBitrate)
             var remaining = duration.map { Int(($0 * OggOpusEncoder.sampleRate).rounded()) } ?? Int.max
             var interleaved: [Float] = []
             while remaining > 0, file.framePosition < file.length {
@@ -57,15 +75,22 @@ enum RecordingFile {
                 }
                 try interleaved.withUnsafeBufferPointer { try encoder.append($0) }
                 remaining -= frames
+                encoded += frames
             }
             try encoder.finish()
+            guard encoded > 0 else { throw CocoaError(.fileReadCorruptFile) }
+            let files = FileManager.default
+            if files.fileExists(atPath: destination.path) {
+                _ = try files.replaceItemAt(destination, withItemAt: partial)
+            } else {
+                try files.moveItem(at: partial, to: destination)
+            }
         } catch {
             Log.write("opus encode failed: \(error)")
-            try? FileManager.default.removeItem(at: destination)
+            try? FileManager.default.removeItem(at: partial)
             return false
         }
-        let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0
-        return size > 0
+        return true
     }
 }
 
@@ -104,11 +129,12 @@ final class StereoWriter {
 
     func append(_ mono: [Float], pts: CMTime, to channel: Channel) throws {
         guard !mono.isEmpty else { return }
-        if origin == nil { origin = pts }
+        let origin = self.origin ?? pts
+        self.origin = origin
 
         var track = channel == .left ? left : right
         let end = written + track.samples.count
-        var expected = index(of: pts, origin: track.origin ?? origin!)
+        var expected = index(of: pts, origin: track.origin ?? origin)
 
         var tolerance = Self.tolerance
         if !track.started {

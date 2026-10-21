@@ -34,7 +34,7 @@ Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and
 - **No meeting bot.** It records the audio on your Mac, so no notetaker joins the call, nobody sees an extra participant, and it works for any call, not just scheduled meetings.
 - **Starts and stops with your call.** Auto-record begins when a call starts and ends when you hang up, with a banner and a Stop button so you always know. Nothing is captured between calls.
 - **Private, on your Mac.** Audio only, never the screen. Recordings are Ogg Opus files in `~/Music/Digisensus Recorder`, and nothing is uploaded unless you choose to transcribe.
-- **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you. Use a Digisensus account (free daily credit, sign in with your email, no password) or any OpenAI-compatible speech-to-text and chat server of your own. Or skip AI entirely.
+- **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
 - **Organised.** Browse by day in the calendar, filter by app or tag, and search every transcript. Each call has its own notes.
 - **Works with AI agents.** The bundled `recorder` command and its MCP server let Claude Code, Codex and other agents list, search, export and summarise recordings, and start or stop recording. Turn it on in Settings › Advanced. The command lives inside the app, at `Digisensus Recorder.app/Contents/MacOS/recorder`.
 
@@ -42,14 +42,32 @@ Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and
 recorder status | start | stop | auto on|off
 recorder list --from 2026-09-01 --transcribed
 recorder search "pricing"
+recorder show 42 | transcribe 42 | summarize 42
+recorder set 42 --title "Budget call" --notes "Send the quote"
 recorder export 42 markdown
 recorder mcp        # Model Context Protocol server on stdin/stdout
 ```
 
+## Permissions, and why each one is needed
+
+Digisensus Recorder records audio and nothing else. The walkthrough asks for these permissions one by one, and none of them needs a restart: each one works the moment you allow it.
+
+![The permissions step of the walkthrough: Microphone, System Audio Recording, Notifications and Browser meeting names, each explained, with a test button](docs/screenshots/permissions.png)
+
+**Microphone · required.** Your side of the call. Without it there is nothing to record on your side, so recording stays off.
+
+**System Audio Recording · required.** The other side of the call: the voice coming out of Zoom, Meet, FaceTime or whichever app you are in. macOS keeps this permission under Privacy & Security › Screen & System Audio Recording › System Audio Recording Only. Only the audio part is used; the app never captures your screen, and macOS enforces that. Without it, recording stays off.
+
+**Notifications · recommended.** Messages from Digisensus, and a note when an AI agent starts a recording through the agent interface. The app's own banner tells you when a call starts and stops regardless, so without this permission you only miss those two.
+
+**Browser meeting names · optional.** A call in a desktop app is named after the app: Zoom, Teams, FaceTime. A call in a browser tab looks like "Chrome" to macOS, because other apps cannot see a browser's window titles. To name it "Meet" or "Zoom" instead, the app can ask the browser for the addresses of its open tabs, only while a call is detected in that browser, and match them against a short list of meeting services: Meet, Zoom, Teams, Whereby, Jitsi, Webex, Slack and Discord. Nothing else is read or stored. It works with Chrome, Edge, Brave, Arc and Safari, and macOS asks once per browser. Without it, browser calls are named after the browser.
+
+**Nothing else.** The app does not use Accessibility, Full Disk Access, Contacts or Calendars. Recordings are plain files in `~/Music/Digisensus Recorder`; the Mac App Store version is sandboxed and can reach that folder and nothing else of yours.
+
 ## FAQ
 
 **How do I record calls on a Mac?**
-Install Digisensus Recorder and allow the microphone and system audio permissions. With auto-record on, it records every call as it starts and stops when you hang up. You can also press Record in the menu bar at any time.
+Install Digisensus Recorder and allow the Microphone and System Audio Recording permissions (see Permissions above). With auto-record on, it records every call as it starts and stops when you hang up. You can also press Record in the menu bar at any time.
 
 **Can it record FaceTime, WhatsApp and phone calls on a Mac?**
 Yes. It records FaceTime, WhatsApp, Viber, Telegram, Zoom, Google Meet, Microsoft Teams, Slack and any other app that plays call audio on your Mac or MacBook. iPhone phone calls are recorded when you answer them on your Mac through Continuity.
@@ -63,6 +81,9 @@ Digisensus Recorder is free and open source under the GPL. Like them, it gives y
 **Where are my recordings stored?**
 On your Mac, as Ogg Opus audio files in `~/Music/Digisensus Recorder`. Nothing is uploaded unless you ask for a transcript. Transcription runs on the Digisensus service or on an OpenAI-compatible server you choose, which can be one running on your own Mac.
 
+**I used the direct download. Can I switch to the Mac App Store version?**
+Yes. On its first launch the App Store version copies your library (transcripts, summaries, titles, notes, tags), settings and sign-in from the direct download, and leaves the original untouched. Recordings are shared, since both use `~/Music/Digisensus Recorder`. You'll be asked for the permissions again, because macOS treats the App Store copy as a new app.
+
 **Is it free?**
 Yes. Recording is free with no account. Transcripts and summaries through a Digisensus account come with free daily credit, or you can use your own AI service instead.
 
@@ -71,11 +92,11 @@ Recording laws differ between countries and states. Telling others that the call
 
 ## Build from source
 
-Requires macOS 15 Sequoia or later and the Swift 6 toolchain (Xcode or the command-line tools).
+Requires a Mac with Apple silicon running macOS 15 Sequoia or later, and the Swift 6 toolchain (Xcode or the command-line tools).
 
 ```sh
 swift build            # debug build
-swift test             # database, Ogg Opus and summary parsing tests
+swift test             # unit tests
 ./build.sh             # builds "Digisensus Recorder.app" into ./build
 ```
 
@@ -96,7 +117,7 @@ Environment variables the app reads, for working on it without a real call or a 
 | `DIGISENSUS_SERVER` | Use this Digisensus backend (e.g. `http://localhost:8085`) for accounts, transcription, messages and updates. |
 | `DSREC_ONBOARDING` | Show the first-launch walkthrough again. |
 | `DSREC_SNAPSHOT=<folder>` | Render the walkthrough, main window, Settings and menu bar panel to PNGs in that folder, then quit. |
-| `DSREC_DEMO` | Report notifications as allowed, for screenshots from a test bundle. |
+| `DSREC_DEMO` | Report every permission as allowed, for screenshots from a test bundle. |
 | `DSREC_DETECT_PROCESS=<name>` | Treat that process holding the microphone as a call, so auto-record can be tested without one. |
 | `DSREC_TAP_PROCESSES=<a,b>` | Tap these processes for the "Phone & FaceTime calls" source instead of the call daemons. |
 | `DSREC_MESSAGES_POLL=<seconds>` | Check for messages this often (at least 5) instead of every 15 minutes. |

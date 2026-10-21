@@ -54,10 +54,10 @@ final class BannerPresenter {
         if !panel.isVisible {
             panel.alphaValue = 0
             panel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                panel.animator().alphaValue = 1
-            }
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            panel.animator().alphaValue = 1
         }
 
         dismissTask = Task { [weak self] in
@@ -122,6 +122,7 @@ private struct BannerView: View {
             }
             .buttonStyle(.plain)
             .help("Dismiss")
+            .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

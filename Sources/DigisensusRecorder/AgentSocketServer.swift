@@ -5,8 +5,10 @@ final class AgentSocketServer {
     private let handler: (Data) async -> Data
     private var descriptor: Int32 = -1
     private let connections = DispatchQueue(label: "com.digisensus.recorder.agent.connections", attributes: .concurrent)
+    private let openSlots = DispatchSemaphore(value: 4)
 
     private static let requestLimit = 1 << 20
+    private static let ioTimeout = 10
 
     init(path: String, handler: @escaping (Data) async -> Data) {
         self.path = path
@@ -64,7 +66,11 @@ final class AgentSocketServer {
                 if errno == EINTR { continue }
                 return
             }
-            connections.async { [weak self] in self?.serve(client) }
+            openSlots.wait()
+            connections.async { [weak self] in
+                self?.serve(client)
+                self?.openSlots.signal()
+            }
         }
     }
 
@@ -74,6 +80,11 @@ final class AgentSocketServer {
         var uid: uid_t = 0
         var gid: gid_t = 0
         guard getpeereid(client, &uid, &gid) == 0, uid == getuid() else { return }
+        var timeout = timeval(tv_sec: Self.ioTimeout, tv_usec: 0)
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        var noSignal: Int32 = 1
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
 
         var request = Data()
         var buffer = [UInt8](repeating: 0, count: 16_384)

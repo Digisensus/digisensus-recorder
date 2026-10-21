@@ -4,19 +4,60 @@ import SwiftUI
 final class OnboardingFlow: ObservableObject {
     enum AIChoice: CaseIterable { case account, own, skip }
 
+    struct ServiceDraft {
+        var preset = AIPreset.local
+        var server = ""
+        var apiKey = ""
+
+        var trimmedServer: String { server.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var isComplete: Bool { preset != .other || !trimmedServer.isEmpty }
+    }
+
     static let doneKey = "onboardingDone"
     static let onceMoreKey = "showIntroOnNextStart"
     static let stepCount = 5
 
     @Published var step = 0
     @Published var aiChoice = AIChoice.account
-    @Published var server = ""
-    @Published var apiKey = ""
+    @Published var transcriptionService = ServiceDraft()
+    @Published var summaryService = ServiceDraft()
     @Published var autoRecord = true
     @Published var openAtLogin = true
     let signIn = SignInForm()
 
     var finish: () -> Void = {}
+
+    var summaryUsesTranscriptionKey: Bool {
+        summaryService.preset == transcriptionService.preset && summaryService.preset.server != nil
+    }
+
+    func draft(for purpose: AIPurpose) -> ServiceDraft {
+        purpose == .transcription ? transcriptionService : summaryService
+    }
+
+    func keepCurrentSettings(of model: RecorderModel) {
+        let library = model.library
+        switch library.aiService {
+        case .digisensus: aiChoice = .account
+        case .own: aiChoice = .own
+        case .off: aiChoice = .skip
+        }
+        transcriptionService = Self.draft(of: library.transcription, for: .transcription)
+        summaryService = Self.draft(of: library.summary, for: .summary)
+        autoRecord = model.autoRecord
+        openAtLogin = model.launchAtLogin
+    }
+
+    private static func draft(of settings: some AIServiceSettings, for purpose: AIPurpose) -> ServiceDraft {
+        let preset = settings.servicePreset(for: purpose)
+        return ServiceDraft(preset: preset, server: preset.server == nil ? settings.server : "", apiKey: settings.apiKey)
+    }
+
+    func choose(_ preset: AIPreset, for purpose: AIPurpose) {
+        guard preset != draft(for: purpose).preset else { return }
+        let draft = ServiceDraft(preset: preset)
+        if purpose == .transcription { transcriptionService = draft } else { summaryService = draft }
+    }
 }
 
 struct OnboardingView: View {
@@ -102,7 +143,7 @@ struct OnboardingView: View {
             Button(flow.aiChoice == .skip ? "Skip for Now" : "Continue") { flow.step += 1 }
                 .buttonStyle(StrongButtonStyle())
         case OnboardingFlow.stepCount - 1:
-            Button("Open Digisensus") { flow.finish() }
+            Button("Open Digisensus Recorder") { flow.finish() }
                 .buttonStyle(StrongButtonStyle())
                 .keyboardShortcut(.defaultAction)
         default:
@@ -180,10 +221,10 @@ private struct HowItWorksStep: View {
             }
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
                 GridRow {
-                    Feature(symbol: "record.circle", ink: Color(hex: 0xC02E26), tint: Palette.recordTint,
+                    Feature(symbol: "record.circle", ink: Palette.dynamic(0xC02E26, 0xFF7A70), tint: Palette.recordTint,
                             title: "Starts and stops with your call",
                             detail: "Auto-record begins the moment a call starts and ends when you hang up.")
-                    Feature(symbol: "bell", ink: Color(hex: 0xB25E14), tint: Palette.dynamic(0xFDF1E6, 0x45331F),
+                    Feature(symbol: "bell", ink: Palette.dynamic(0xB25E14, 0xF0A35E), tint: Palette.dynamic(0xFDF1E6, 0x45331F),
                             title: "You always know",
                             detail: "A banner flashes when recording starts, with a Stop button. Stop any time.")
                 }
@@ -196,7 +237,7 @@ private struct HowItWorksStep: View {
                             detail: "Recordings stay in a folder on this Mac. Nothing is uploaded unless you choose.")
                 }
                 GridRow {
-                    Feature(symbol: "sparkles", ink: Color(hex: 0x1F5E86), tint: Palette.dynamic(0xE6F2F9, 0x1F3542),
+                    Feature(symbol: "sparkles", ink: Palette.dynamic(0x1F5E86, 0x7DB8E0), tint: Palette.dynamic(0xE6F2F9, 0x1F3542),
                             title: "AI when you want it",
                             detail: "Transcripts that show who said what, and short summaries. With MCP, Claude Code or Codex can find recordings, read transcripts and start or stop recording.")
                         .gridCellColumns(2)
@@ -246,7 +287,7 @@ private struct PermissionsStep: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Allow recording").font(.system(size: 26, weight: .bold)).tracking(-0.5)
-                Text("Three permissions, then a quick test. The app records audio only, never your screen.")
+                Text("A few permissions, then a quick test. The app records audio only, never your screen.")
                     .font(.system(size: 14))
                     .foregroundStyle(Palette.secondary)
             }
@@ -255,14 +296,19 @@ private struct PermissionsStep: View {
                     title: "Microphone", tag: "required", detail: "Records your side of the conversation.",
                     action: "Allow")
                 Divider()
-                row(.systemAudio, symbol: "speaker.wave.2", ink: Color(hex: 0xB25E14), tint: Palette.dynamic(0xFDF1E6, 0x45331F),
+                row(.systemAudio, symbol: "speaker.wave.2", ink: Palette.dynamic(0xB25E14, 0xF0A35E), tint: Palette.dynamic(0xFDF1E6, 0x45331F),
                     title: "System Audio Recording", tag: "required",
-                    detail: "Records the other side from the calling app. You may need to reopen the app after allowing it.",
-                    action: "Open Settings")
+                    detail: "Records the other side from the calling app.",
+                    action: permissions.systemAudioRefused ? "Open Settings" : "Allow")
                 Divider()
                 row(.notifications, symbol: "bell", ink: Palette.secondary, tint: Palette.fill,
                     title: "Notifications", tag: "recommended",
-                    detail: "Tells you when auto-record starts or stops a recording.", action: "Allow")
+                    detail: "Messages from Digisensus, and recordings started by an AI agent.", action: "Allow")
+                Divider()
+                row(.meetingNames, symbol: "globe", ink: Palette.secondary, tint: Palette.fill,
+                    title: "Browser meeting names", tag: "optional",
+                    detail: "Shows the meeting app, like Zoom or Teams, instead of the browser's name.",
+                    action: permissions.meetingNamesRefused ? "Open Settings" : "Allow")
             }
             .card()
             testCard
@@ -364,7 +410,7 @@ private struct PermissionsStep: View {
 
     private func status(me: Bool) -> String {
         switch model.audioTest {
-        case .idle: return me ? "Say something" : "Play any video or song"
+        case .idle: return me ? "Say something" : "Plays a short chime"
         case .running: return "Listening…"
         case .failed(let message): return message
         case .done(let heardMe, let heardThem):
@@ -397,9 +443,9 @@ private struct AISetupStep: View {
                     .foregroundStyle(Palette.secondary)
             }
             HStack(spacing: 12) {
-                option(.account, title: "Digisensus account", detail: "Free daily credit. Sign in with your email, no password.",
+                option(.account, title: AIService.digisensus.label, detail: "Free daily credit. Sign in with your email, no password.",
                        tag: "RECOMMENDED", tagInk: Palette.you)
-                option(.own, title: "Your own AI service", detail: "Use your API key, or a server you run yourself.",
+                option(.own, title: AIService.own.label, detail: "A server on this Mac, or a cloud API with your key.",
                        tag: "FOR ADVANCED USERS", tagInk: Palette.tertiary)
                 option(.skip, title: "Not now", detail: "Just record. Everything stays on this Mac.",
                        tag: "NO AI", tagInk: Palette.tertiary)
@@ -509,7 +555,7 @@ private struct AISetupStep: View {
                         + (form.hasInviteCode
                            ? " and the [Referral Program Terms](\((account.referralTermsURL ?? DigisensusAccount.defaultReferralTermsURL).absoluteString))"
                            : "")
-                        + ". " + DigisensusAccount.trainingNotice + " You can turn this off after signing in."))
+                        + "."))
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.secondary)
                 }
@@ -523,31 +569,75 @@ private struct AISetupStep: View {
 
     private var ownBox: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Server address").font(.system(size: 13, weight: .semibold))
-                    TextField("Server address", text: $flow.server, prompt: Text("https://api.example.com"))
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    columnTitle("Service")
+                    columnTitle("Server address")
+                    columnTitle("API key")
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("API key").font(.system(size: 13, weight: .semibold))
-                    SecureField("API key", text: $flow.apiKey, prompt: Text("Optional"))
-                }
+                serviceRow(.transcription, title: "Transcription", detail: "ASR", draft: $flow.transcriptionService)
+                serviceRow(.summary, title: "Summaries", detail: "LLM", draft: $flow.summaryService)
             }
             .textFieldStyle(.roundedBorder)
-            .controlSize(.large)
             .labelsHidden()
             .autocorrectionDisabled()
             HStack(spacing: 12) {
                 Button("Test Connection") {
                     OnboardingSetup.applyOwnService(flow, to: library)
                     library.checkConnection()
+                    library.checkSummaryConnection()
                 }
-                .disabled(flow.server.isEmpty)
-                Text(library.connectionStatus
-                     ?? "Any OpenAI-compatible speech-to-text and chat API. Models and language can be changed later in Settings.")
+                .disabled(!flow.transcriptionService.isComplete || !flow.summaryService.isComplete)
+                Text(connectionStatus)
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.secondary)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var connectionStatus: String {
+        switch (library.connectionStatus, library.summaryConnectionStatus) {
+        case (nil, nil):
+            return "Other server takes any OpenAI-compatible API. Models and language can be changed later in Settings."
+        case let (transcription, summary):
+            return "Transcription: \(transcription ?? "…")  Summaries: \(summary ?? "…")"
+        }
+    }
+
+    private func columnTitle(_ title: String) -> some View {
+        Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
+    }
+
+    private func serviceRow(_ purpose: AIPurpose, title: String, detail: String,
+                            draft: Binding<OnboardingFlow.ServiceDraft>) -> some View {
+        let preset = draft.wrappedValue.preset
+        return GridRow {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 13, weight: .semibold))
+                Text(detail).font(.system(size: 11)).foregroundStyle(Palette.tertiary)
+            }
+            ServicePicker(purposes: [purpose], selection: preset) { flow.choose($0, for: purpose) }
+                .frame(width: 170)
+            if let fixed = preset.server {
+                Text(URL(string: fixed)?.host ?? fixed)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.tertiary)
+                    .lineLimit(1)
+                    .help(fixed)
+                    .frame(minWidth: 150, alignment: .leading)
+            } else {
+                TextField("Server address", text: draft.server, prompt: Text(preset.addressPrompt(for: purpose)))
+                    .frame(minWidth: 150)
+            }
+            if purpose == .summary && flow.summaryUsesTranscriptionKey {
+                Text("Same key as above")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.tertiary)
+            } else {
+                SecureField("API key", text: draft.apiKey, prompt: Text(preset.keyPrompt))
             }
         }
     }
@@ -688,12 +778,18 @@ private struct MenuBarGlyph: View {
 enum OnboardingSetup {
     static func applyOwnService(_ flow: OnboardingFlow, to library: LibraryStore) {
         library.aiService = .own
-        let server = flow.server.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !server.isEmpty else { return }
-        library.transcription.server = server
-        library.summary.server = server
-        library.transcription.apiKey = flow.apiKey
-        library.summary.apiKey = flow.apiKey
+        let transcription = flow.transcriptionService
+        let summary = flow.summaryService
+        library.choose(transcription.preset, for: .transcription)
+        library.choose(summary.preset, for: .summary)
+        if transcription.preset.server == nil, !transcription.trimmedServer.isEmpty {
+            library.transcription.server = transcription.trimmedServer
+        }
+        if summary.preset.server == nil, !summary.trimmedServer.isEmpty {
+            library.summary.server = summary.trimmedServer
+        }
+        library.transcription.apiKey = transcription.apiKey
+        library.summary.apiKey = flow.summaryUsesTranscriptionKey ? transcription.apiKey : summary.apiKey
     }
 
     static func apply(_ flow: OnboardingFlow, to model: RecorderModel) {

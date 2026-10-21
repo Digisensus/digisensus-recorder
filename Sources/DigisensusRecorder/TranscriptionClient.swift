@@ -1,10 +1,11 @@
 import AVFoundation
 import Foundation
 
-struct TranscriptionSettings: Equatable {
-    static let defaultServer = "http://localhost:8000"
+struct TranscriptionSettings: Equatable, AIServiceSettings {
+    static let defaultServer = "http://localhost:8000/v1"
 
     var provider = AIProvider.digisensus
+    var preset = AIPreset.local.id
     var server = TranscriptionSettings.defaultServer
     var apiKey = ""
     var model = "whisper-1"
@@ -43,11 +44,10 @@ enum TranscriptionError: LocalizedError {
 
 struct TranscriptionClient {
     let settings: TranscriptionSettings
-    var session: URLSession = .shared
+    var session: URLSession = .app
 
     struct Job: Equatable {
         let id: String
-        let pollInterval: Double
     }
 
     enum Poll {
@@ -68,7 +68,7 @@ struct TranscriptionClient {
     static let agentChannel = ["agent_channel": "right"]
 
     func transcribe(_ file: URL) async throws -> TranscriptionResult {
-        let response = try await request(file, extraFields: Self.agentChannel)
+        let response = settings.provider == .digisensus ? try await request(file, extraFields: Self.agentChannel) : [:]
         return try await finish(response, file: file) { try await request($0, extraFields: [:]) }
     }
 
@@ -77,13 +77,14 @@ struct TranscriptionClient {
         guard status == 202, let id = json["id"] as? String, !id.isEmpty else {
             throw TranscriptionError.unreadableResponse
         }
-        return Job(id: id, pollInterval: json["poll_interval"] as? Double ?? 10)
+        return Job(id: id)
     }
 
     func poll(_ jobID: String) async throws -> Poll {
-        guard let base = URL(string: settings.server), base.scheme != nil else { throw TranscriptionError.badServerURL }
-        var request = URLRequest(url: base.appendingPathComponent("v1/audio/transcriptions/jobs/\(jobID)"),
-                                 timeoutInterval: 60)
+        guard let url = URL.endpoint("v1/audio/transcriptions/jobs/\(jobID)", on: settings.server) else {
+            throw TranscriptionError.badServerURL
+        }
+        var request = URLRequest(url: url, timeoutInterval: 60)
         request.authorize(apiKey: settings.apiKey, provider: settings.provider)
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -92,7 +93,7 @@ struct TranscriptionClient {
         case 202:
             return .running(waitHint: json?["poll_interval"] as? Double)
         case 200:
-            guard let json else { throw TranscriptionError.unreadableResponse }
+            guard let json else { return .running(waitHint: nil) }
             if json["status"] as? String == "failed" {
                 let message = (json["error"] as? [String: Any])?["message"] as? String
                 return .failed(message ?? "Transcription failed. Please try again.")
@@ -100,6 +101,9 @@ struct TranscriptionClient {
             return .done(json)
         case 404:
             return .failed("The transcription job is no longer available. Try again.")
+        case 408, 500...599:
+            Log.write("job \(jobID) poll answered \(status), trying again")
+            return .running(waitHint: nil)
         case 429:
             let retry = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
             return .running(waitHint: retry ?? 15)
@@ -112,9 +116,8 @@ struct TranscriptionClient {
     }
 
     func cancel(_ jobID: String) async {
-        guard let base = URL(string: settings.server), base.scheme != nil else { return }
-        var request = URLRequest(url: base.appendingPathComponent("v1/audio/transcriptions/jobs/\(jobID)"),
-                                 timeoutInterval: 20)
+        guard let url = URL.endpoint("v1/audio/transcriptions/jobs/\(jobID)", on: settings.server) else { return }
+        var request = URLRequest(url: url, timeoutInterval: 20)
         request.httpMethod = "DELETE"
         request.authorize(apiKey: settings.apiKey, provider: settings.provider)
         _ = try? await session.data(for: request)
@@ -127,13 +130,15 @@ struct TranscriptionClient {
         }
 
         var turns: [TranscriptionResult.Turn] = []
+        var language = Self.language(in: response)
         for (index, channel) in [TranscriptSegment.Channel.them, .me].enumerated() {
             let mono = try Self.extractChannel(index, of: file)
             defer { try? FileManager.default.removeItem(at: mono) }
-            turns += Self.segments(in: try await transcribeMono(mono), channel: channel)
+            let answer = try await transcribeMono(mono)
+            language = language ?? Self.language(in: answer)
+            turns += Self.segments(in: answer, channel: channel)
         }
-        return TranscriptionResult(turns: Self.coalesced(turns.sorted { $0.start < $1.start }),
-                                   language: Self.language(in: response))
+        return TranscriptionResult(turns: Self.coalesced(turns.sorted { $0.start < $1.start }), language: language)
     }
 
     func submitAndWait(_ file: URL) async throws -> [String: Any] {
@@ -154,16 +159,7 @@ struct TranscriptionClient {
     }
 
     func checkConnection() async -> String {
-        guard let base = URL(string: settings.server) else { return "Not a valid URL." }
-        for path in ["health", "v1/models"] {
-            var request = URLRequest(url: base.appendingPathComponent(path), timeoutInterval: 6)
-            request.authorize(apiKey: settings.apiKey, provider: settings.provider)
-            if let (_, response) = try? await URLSession.shared.data(for: request),
-               (response as? HTTPURLResponse)?.statusCode == 200 {
-                return "Connected."
-            }
-        }
-        return "No answer from \(settings.server)."
+        await ConnectionCheck.run(settings, for: .transcription, session: session)
     }
 
     private func request(_ file: URL, extraFields: [String: String]) async throws -> [String: Any] {
@@ -173,7 +169,7 @@ struct TranscriptionClient {
     }
 
     private func upload(_ file: URL, to path: String, extraFields: [String: String]) async throws -> (Int, [String: Any]) {
-        guard let base = URL(string: settings.server), base.scheme != nil else { throw TranscriptionError.badServerURL }
+        guard let url = URL.endpoint(path, on: settings.server) else { throw TranscriptionError.badServerURL }
         var fields = ["model": settings.model, "response_format": "verbose_json",
                       "timestamp_granularities[]": "segment"]
         if !settings.language.isEmpty { fields["language"] = settings.language }
@@ -184,7 +180,7 @@ struct TranscriptionClient {
         defer { try? FileManager.default.removeItem(at: body) }
         try Self.writeMultipart(to: body, boundary: boundary, fields: fields, file: file)
 
-        var request = URLRequest(url: base.appendingPathComponent(path), timeoutInterval: 3600)
+        var request = URLRequest(url: url, timeoutInterval: 3600)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.authorize(apiKey: settings.apiKey, provider: settings.provider)
@@ -213,7 +209,7 @@ struct TranscriptionClient {
                 "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))
         }
         try output.write(contentsOf: Data(
-            ("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(file.lastPathComponent)\"\r\n"
+            ("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.\(file.pathExtension)\"\r\n"
                 + "Content-Type: application/octet-stream\r\n\r\n").utf8))
         let input = try FileHandle(forReadingFrom: file)
         defer { try? input.close() }

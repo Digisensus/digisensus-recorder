@@ -111,6 +111,7 @@ final class UpdateController: NSObject, ObservableObject {
         quietTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.installIfQuiet() }
         }
+        quietTimer?.tolerance = 5
         #endif
     }
 
@@ -118,12 +119,17 @@ final class UpdateController: NSObject, ObservableObject {
         #if APP_STORE
         openAppStore()
         #else
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         updater?.checkForUpdates()
         #endif
     }
 
+    var restartWaitsForRecording: Bool {
+        model.isRecording && pending?.isReady == true
+    }
+
     func installNow() {
+        guard !restartWaitsForRecording else { return }
         if let install = installWhenQuiet {
             installWhenQuiet = nil
             install()
@@ -198,7 +204,9 @@ extension UpdateController: SPUUpdaterDelegate {
     nonisolated func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem,
                              untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
         MainActor.assumeIsolated {
-            guard model.isRecording || model.isBusy else { return false }
+            let library = model.library
+            guard model.isRecording || model.isBusy || !library.transcribing.isEmpty || !library.summarizing.isEmpty
+            else { return false }
             installWhenQuiet = installHandler
             pending = Pending(version: item.displayVersionString, isReady: true)
             return true
@@ -242,7 +250,7 @@ extension UpdateController: SPUStandardUserDriverDelegate {
         let version = update.displayVersionString
         MainActor.assumeIsolated {
             if installWhenQuiet == nil { pending = Pending(version: version, isReady: false) }
-            if handleShowingUpdate { NSApp.activate(ignoringOtherApps: true) }
+            if handleShowingUpdate { NSApp.activate() }
         }
     }
 }

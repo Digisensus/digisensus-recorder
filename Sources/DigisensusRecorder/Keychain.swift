@@ -5,7 +5,16 @@ enum Keychain {
     private static let service = Bundle.main.bundleIdentifier ?? "com.digisensus.recorder"
 
     static func string(_ account: String) -> String? {
-        var query = baseQuery(account)
+        read(baseQuery(account))
+    }
+
+    static func loginKeychainString(_ account: String, service: String) -> String? {
+        read([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+              kSecAttrAccount as String: account])
+    }
+
+    private static func read(_ base: [String: Any]) -> String? {
+        var query = base
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
@@ -24,7 +33,7 @@ enum Keychain {
         if status == errSecItemNotFound {
             var item = baseQuery(account)
             item[kSecValueData as String] = data
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             let added = SecItemAdd(item as CFDictionary, nil)
             if added != errSecSuccess { Log.write("keychain add \(account) failed: \(added)") }
         } else if status != errSecSuccess {

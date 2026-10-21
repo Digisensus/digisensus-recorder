@@ -94,7 +94,8 @@ struct MessageWebView: NSViewRepresentable {
                 decisionHandler(.allow)
                 return
             }
-            if let url = action.request.url, ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
+            if action.navigationType == .linkActivated, let url = action.request.url,
+               ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
                 NSWorkspace.shared.open(url)
             }
             decisionHandler(.cancel)

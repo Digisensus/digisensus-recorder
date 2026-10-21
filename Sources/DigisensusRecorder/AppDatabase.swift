@@ -49,7 +49,6 @@ struct TranscriptSegment: Codable, Identifiable, Equatable, FetchableRecord, Mut
     var startTime: Double
     var endTime: Double
     var text: String
-    var confidence: Double?
 
     static let databaseTableName = "transcriptSegment"
 
@@ -66,23 +65,25 @@ struct TranscriptSearchHit: Identifiable {
 }
 
 final class AppDatabase {
+    static let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Digisensus Recorder", isDirectory: true)
+
     static let shared: AppDatabase = {
         do {
-            let folder = try FileManager.default
-                .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                .appendingPathComponent("Digisensus Recorder", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             return try AppDatabase(DatabasePool(path: folder.appendingPathComponent("recorder.sqlite").path))
         } catch {
             Log.write("database unavailable, using memory: \(error)")
-            return try! AppDatabase(DatabaseQueue())
+            return try! AppDatabase(DatabaseQueue(), isTemporary: true)
         }
     }()
 
     let writer: any DatabaseWriter
+    let isTemporary: Bool
 
-    init(_ writer: any DatabaseWriter) throws {
+    init(_ writer: any DatabaseWriter, isTemporary: Bool = false) throws {
         self.writer = writer
+        self.isTemporary = isTemporary
         try Self.migrator.migrate(writer)
     }
 
@@ -166,6 +167,9 @@ final class AppDatabase {
             }
         }
 
+        migrator.registerMigration("v5 drop embeddings") { db in
+            try db.drop(table: "transcriptEmbedding")
+        }
         return migrator
     }
 }
@@ -188,8 +192,23 @@ extension AppDatabase {
         }
     }
 
-    func update(_ recording: Recording) throws {
-        try writer.write { try recording.update($0) }
+    func setFile(sizeBytes: Int64, duration: Double, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID) else { return }
+            recording.sizeBytes = sizeBytes
+            recording.duration = duration
+            recording.fileMissing = false
+            try recording.update(db)
+        }
+    }
+
+    func setTitleAndNotes(title: String?, notes: String?, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID) else { return }
+            recording.title = title
+            recording.notes = notes
+            try recording.update(db)
+        }
     }
 
     func deleteRecording(id: Int64) throws {

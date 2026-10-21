@@ -44,6 +44,26 @@ struct AudioProcess {
     }
 }
 
+extension AudioProcess {
+    private static let webKitPrefix = "com.apple.WebKit."
+
+    var appBundleID: String {
+        webKitOwner?.bundleIdentifier ?? bundleID
+    }
+
+    var webKitOwner: NSRunningApplication? {
+        guard bundleID.hasPrefix(Self.webKitPrefix),
+              let name = NSRunningApplication(processIdentifier: pid)?.localizedName else { return nil }
+        return NSWorkspace.shared.runningApplications
+            .filter { app in
+                guard let owner = app.localizedName, app.bundleIdentifier?.hasPrefix(Self.webKitPrefix) == false
+                else { return false }
+                return name.hasPrefix(owner + " ")
+            }
+            .max { ($0.localizedName?.count ?? 0) < ($1.localizedName?.count ?? 0) }
+    }
+}
+
 struct DetectedCall: Equatable {
     let label: String
     let source: AudioSource
@@ -76,7 +96,6 @@ enum CallDetector {
         KnownApp(prefix: "company.thebrowser.Browser", label: "Arc", appBundleID: "company.thebrowser.Browser",
                  isBrowser: true),
         KnownApp(prefix: "org.mozilla.firefox", label: "Firefox", appBundleID: "org.mozilla.firefox", isBrowser: true),
-        KnownApp(prefix: "com.apple.WebKit.GPU", label: "Safari", appBundleID: "com.apple.Safari", isBrowser: true),
         KnownApp(prefix: "com.apple.Safari", label: "Safari", appBundleID: "com.apple.Safari", isBrowser: true),
     ]
 
@@ -88,7 +107,7 @@ enum CallDetector {
     private static let callDaemons: Set<String> = ["avconferenced", "callservicesd"]
     private static let callApps: Set<String> = ["com.apple.FaceTime", "com.apple.mobilephone"]
 
-    static func currentCall() -> DetectedCall? {
+    @MainActor static func currentCall() -> DetectedCall? {
         let own = ProcessInfo.processInfo.processIdentifier
         let capturing = AudioProcess.all().filter { $0.isCapturing && $0.pid != own }
 
@@ -103,14 +122,22 @@ enum CallDetector {
             return DetectedCall(label: faceTimeIsOpen ? "FaceTime" : "Phone", source: .calls)
         }
         for process in capturing {
-            guard let app = knownApps.first(where: { process.bundleID.hasPrefix($0.prefix) }) else { continue }
+            let bundleID = process.appBundleID
+            guard let app = knownApps.first(where: { bundleID.hasPrefix($0.prefix) }) else { continue }
             let label = app.isBrowser ? webMeetingLabel(inWindowsOf: app.appBundleID) ?? app.label : app.label
             return DetectedCall(label: label, source: .application(bundleID: app.appBundleID))
         }
         return nil
     }
 
-    private static func webMeetingLabel(inWindowsOf bundleID: String) -> String? {
+    @MainActor private static func webMeetingLabel(inWindowsOf bundleID: String) -> String? {
+        windowTitleLabel(of: bundleID) ?? BrowserMeetings.shared.label(in: bundleID)
+    }
+
+    private static let canReadWindowTitles = CGPreflightScreenCaptureAccess()
+
+    private static func windowTitleLabel(of bundleID: String) -> String? {
+        guard canReadWindowTitles else { return nil }
         let pids = Set(NSWorkspace.shared.runningApplications
             .filter { $0.bundleIdentifier == bundleID }.map(\.processIdentifier))
         guard !pids.isEmpty,

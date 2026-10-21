@@ -5,7 +5,7 @@ import UserNotifications
 @MainActor
 final class Permissions: ObservableObject {
     enum Kind: String, CaseIterable, Identifiable {
-        case microphone, systemAudio, notifications
+        case microphone, systemAudio, notifications, meetingNames
         var id: String { rawValue }
 
         var name: String {
@@ -13,16 +13,18 @@ final class Permissions: ObservableObject {
             case .microphone: return "Microphone"
             case .systemAudio: return "System audio"
             case .notifications: return "Notifications"
+            case .meetingNames: return "Meeting names"
             }
         }
 
-        var isRequired: Bool { self != .notifications }
+        var isRequired: Bool { self == .microphone || self == .systemAudio }
 
         fileprivate var settingsPane: String {
             switch self {
             case .microphone: return "Privacy_Microphone"
             case .systemAudio: return "Privacy_ScreenCapture"
-            case .notifications: return "Notifications"
+            case .notifications: return ""
+            case .meetingNames: return "Privacy_Automation"
             }
         }
     }
@@ -31,26 +33,31 @@ final class Permissions: ObservableObject {
     @Published private(set) var systemAudio = false
     @Published private(set) var notifications = false
     @Published private(set) var systemAudioRefused = false
+    @Published private(set) var meetingNames = false
+    @Published private(set) var meetingNamesRefused = false
 
     static let systemAudioHint = "Already on in System Settings? It may belong to another copy of Digisensus Recorder. "
         + "Select Digisensus Recorder there, remove it with the − button, then allow it again."
-    private nonisolated static let askedSystemAudioKey = "askedSystemAudio"
 
-    @discardableResult
-    nonisolated static func requestSystemAudio() -> Bool {
-        UserDefaults.standard.set(true, forKey: askedSystemAudioKey)
-        return CGRequestScreenCaptureAccess()
-    }
-
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
     private var poll: Timer?
+    private var pollTicks = 0
 
     init() {
         refresh()
-        observer = NotificationCenter.default.addObserver(
+        observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refresh()
+                if SystemAudioAccess.wasRequested { self?.checkSystemAudio() }
+                self?.askBrowsersIfWanted()
+            }
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: SystemAudioAccess.didChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
-        }
+        })
+        if SystemAudioAccess.wasRequested { checkSystemAudio() }
     }
 
     func isGranted(_ kind: Kind) -> Bool {
@@ -58,29 +65,72 @@ final class Permissions: ObservableObject {
         case .microphone: return microphone
         case .systemAudio: return systemAudio
         case .notifications: return notifications
+        case .meetingNames: return meetingNames
         }
     }
 
     var missing: [Kind] { Kind.allCases.filter { !isGranted($0) } }
     var requiredGranted: Bool { microphone && systemAudio }
 
+    private static let demo = ProcessInfo.processInfo.environment["DSREC_DEMO"] != nil
+
     func refresh() {
+        if Self.demo {
+            (microphone, systemAudio, notifications, meetingNames) = (true, true, true, true)
+            return
+        }
         microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        systemAudio = CGPreflightScreenCaptureAccess()
-        let refused = !systemAudio && UserDefaults.standard.bool(forKey: Self.askedSystemAudioKey)
+        systemAudio = SystemAudioAccess.lastKnown == .granted
+        let refused = SystemAudioAccess.wasRequested && SystemAudioAccess.lastKnown == .denied
         if refused != systemAudioRefused { systemAudioRefused = refused }
         Task {
             let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
             notifications = status == .authorized || status == .provisional
-                || ProcessInfo.processInfo.environment["DSREC_DEMO"] != nil
         }
+        Task {
+            let refused = await Task.detached { Self.browserRefused() }.value
+            if refused != meetingNamesRefused { meetingNamesRefused = refused }
+            let granted = BrowserMeetings.isWanted && !refused
+            if granted != meetingNames { meetingNames = granted }
+        }
+    }
+
+    private nonisolated static func browserRefused() -> Bool {
+        BrowserMeetings.runningBrowsers().contains { BrowserMeetings.access(to: $0, ask: false) == .denied }
     }
 
     func startWatching() {
         guard poll == nil else { return }
         poll = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.refresh()
+                self.pollTicks += 1
+                if self.pollTicks % 10 == 0 { self.recheckSystemAudio() }
+            }
         }
+        poll?.tolerance = 0.2
+    }
+
+    private func askBrowsersIfWanted() {
+        guard BrowserMeetings.isWanted else { return }
+        Task {
+            let unanswered = await Task.detached {
+                BrowserMeetings.runningBrowsers().contains { BrowserMeetings.access(to: $0, ask: false) == .notAsked }
+            }.value
+            guard unanswered else { return }
+            _ = await Task.detached { BrowserMeetings.askRunningBrowsers() }.value
+            refresh()
+        }
+    }
+
+    private func recheckSystemAudio() {
+        guard SystemAudioAccess.wasRequested, !systemAudio else { return }
+        checkSystemAudio()
+    }
+
+    private func checkSystemAudio() {
+        Task { _ = await SystemAudioAccess.check() }
     }
 
     func stopWatching() {
@@ -100,8 +150,11 @@ final class Permissions: ObservableObject {
                 openSettings(for: kind)
             }
         case .systemAudio:
-            if !Self.requestSystemAudio() { openSettings(for: kind) }
-            refresh()
+            let askedBefore = SystemAudioAccess.wasRequested
+            Task {
+                if await SystemAudioAccess.check() == .denied, askedBefore { openSettings(for: kind) }
+                refresh()
+            }
         case .notifications:
             Task {
                 let center = UNUserNotificationCenter.current()
@@ -110,6 +163,13 @@ final class Permissions: ObservableObject {
                 } else {
                     openSettings(for: kind)
                 }
+                refresh()
+            }
+        case .meetingNames:
+            UserDefaults.standard.set(true, forKey: BrowserMeetings.wantedKey)
+            Task {
+                let refused = await Task.detached { BrowserMeetings.askRunningBrowsers() }.value
+                if refused { openSettings(for: kind) }
                 refresh()
             }
         }

@@ -257,6 +257,8 @@ struct CallRow: View {
             Text(Self.highlighted(snippet)).foregroundStyle(Palette.ink.opacity(0.8))
         } else {
             switch CallState(recording, in: library) {
+            case .processing:
+                Text("Processing the recording…").italic().foregroundStyle(Palette.tertiary)
             case .transcribing:
                 Text("Transcribing… summary and tags will follow.").italic().foregroundStyle(Palette.tertiary)
             case .summarizing:
@@ -289,12 +291,14 @@ struct CallRow: View {
 }
 
 enum CallState {
-    case transcribing, summarizing, summarized(String), transcribed, failed, audioOnly
+    case processing, transcribing, summarizing, summarized(String), transcribed, failed, audioOnly
 
     @MainActor
     init(_ recording: Recording, in library: LibraryStore) {
         let id = recording.rowID
-        if library.transcribing.contains(id) || recording.transcriptStatus == .pending {
+        if library.processing[id] != nil {
+            self = .processing
+        } else if library.transcribing.contains(id) || recording.transcriptStatus == .pending {
             self = .transcribing
         } else if library.summarizing.contains(id) {
             self = .summarizing

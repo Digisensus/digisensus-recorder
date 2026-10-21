@@ -106,7 +106,7 @@ final class PlayerModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        MainActor.assumeIsolated {
+        Task { @MainActor in
             stopTimer()
             isPlaying = false
             currentTime = duration

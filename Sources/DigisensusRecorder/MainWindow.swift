@@ -12,14 +12,6 @@ enum SettingsTab: Int, CaseIterable {
         }
     }
 
-    var symbol: String {
-        switch self {
-        case .general: return "mic"
-        case .ai: return "sparkles"
-        case .advanced: return "gearshape"
-        case .license: return "doc.text"
-        }
-    }
 }
 
 @MainActor
@@ -32,7 +24,7 @@ final class AppNavigation: ObservableObject {
     @Published var showingLive = false
     @Published var settingsTab: SettingsTab?
     @Published var detailTab = DetailTab.summary
-    var followNextRecording = false
+    var followNewestUntil: Date?
     var didOpen = false
     var openSettings: (SettingsTab) -> Void = { _ in }
 }
@@ -76,12 +68,13 @@ struct MainView: View {
                 navigation.showingLive = true
             } else if navigation.showingLive {
                 navigation.showingLive = false
-                navigation.followNextRecording = true
+                navigation.followNewestUntil = Date().addingTimeInterval(60)
             }
         }
         .onChange(of: library.recordings.first?.id) { _, newest in
-            guard navigation.followNextRecording, let newest else { return }
-            navigation.followNextRecording = false
+            guard let until = navigation.followNewestUntil, let newest else { return }
+            navigation.followNewestUntil = nil
+            guard Date() < until, navigation.settingsTab == nil else { return }
             library.focus(on: newest)
         }
         .onChange(of: library.selection) { _, selection in
@@ -336,21 +329,21 @@ private struct PermissionStatus: View {
             }
             ForEach(permissions.missing) { kind in
                 HStack(spacing: 8) {
-                    Circle().fill(Palette.record).frame(width: 8, height: 8)
+                    Circle().fill(kind.isRequired ? Palette.record : Palette.tertiary).frame(width: 8, height: 8)
                     Text(kind.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                     Button {
                         permissions.request(kind)
                     } label: {
                         HStack(spacing: 4) {
-                            Text("Not allowed · Fix")
+                            Text(kind.isRequired ? "Not allowed · Fix" : "Off · Allow")
                             Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Palette.recordInk)
+                        .foregroundStyle(kind.isRequired ? Palette.recordInk : Palette.secondary)
                         .fixedSize()
                         .padding(.horizontal, 8)
                         .frame(height: 24)
-                        .background(Palette.recordTint, in: RoundedRectangle(cornerRadius: 6))
+                        .background(kind.isRequired ? Palette.recordTint : Palette.fill, in: RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open System Settings to allow \(kind.name)")
@@ -438,7 +431,7 @@ private struct AccountFooter: View {
                 Text("Sign in for transcripts").font(.system(size: 11)).foregroundStyle(Palette.you)
             }
         case .own:
-            Text("Own AI service").font(.system(size: 12, weight: .semibold))
+            Text(AIService.own.label).font(.system(size: 12, weight: .semibold))
             Text(URL(string: library.transcription.server)?.host ?? library.transcription.server)
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.tertiary)

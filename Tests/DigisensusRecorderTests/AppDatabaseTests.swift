@@ -22,9 +22,8 @@ struct AppDatabaseTests {
 
     @Test func savingTheSameFileAgainKeepsTheRow() throws {
         let (database, id) = try database()
-        var titled = try #require(try database.recording(id: id))
-        titled.title = "Kickoff"
-        try database.update(titled)
+        try database.setTitleAndNotes(title: "Kickoff", notes: nil, recordingID: id)
+        let titled = try #require(try database.recording(id: id))
 
         var refreshed = titled
         refreshed.title = nil
@@ -33,6 +32,15 @@ struct AppDatabaseTests {
         #expect(again.id == id)
         #expect(again.title == "Kickoff")
         #expect(again.sizeBytes == 2000)
+    }
+
+    @Test func editingTheTitleKeepsTheTranscriptStatus() throws {
+        let (database, id) = try database()
+        let before = try #require(try database.recording(id: id))
+        try database.setTitleAndNotes(title: "Budget", notes: "Call back", recordingID: id)
+        let after = try #require(try database.recording(id: id))
+        #expect(after.title == "Budget" && after.notes == "Call back")
+        #expect(after.transcriptStatus == before.transcriptStatus)
     }
 
     @Test func searchFoldsDiacriticsAndMatchesPrefixes() throws {

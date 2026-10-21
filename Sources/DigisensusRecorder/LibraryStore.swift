@@ -132,19 +132,32 @@ final class LibraryStore: ObservableObject {
     }
 
     @Published var transcription = LibraryStore.loadTranscriptionSettings() {
-        didSet { saveTranscriptionSettings(keyChanged: transcription.apiKey != oldValue.apiKey) }
+        didSet {
+            let keyChanged = transcription.apiKey != oldValue.apiKey
+            saveTranscriptionSettings(keyChanged: keyChanged)
+            if keyChanged, summary.sharesService(with: transcription), summary.apiKey != transcription.apiKey {
+                summary.apiKey = transcription.apiKey
+            }
+        }
     }
     @Published var autoTranscribe = UserDefaults.standard.object(forKey: "autoTranscribe") as? Bool ?? true {
         didSet { UserDefaults.standard.set(autoTranscribe, forKey: "autoTranscribe") }
     }
     @Published private(set) var transcribing: Set<Int64> = []
+    @Published private(set) var processing: [Int64: String] = [:]
     private var transcriptionJobs: [Int64: Task<Void, Never>] = [:]
     @Published private(set) var transcriptionErrors: [Int64: String] = [:]
     @Published private(set) var transcriptRevision = 0
     @Published private(set) var connectionStatus: String?
 
     @Published var summary = LibraryStore.loadSummarySettings() {
-        didSet { saveSummarySettings(keyChanged: summary.apiKey != oldValue.apiKey) }
+        didSet {
+            let keyChanged = summary.apiKey != oldValue.apiKey
+            saveSummarySettings(keyChanged: keyChanged)
+            if keyChanged, transcription.sharesService(with: summary), transcription.apiKey != summary.apiKey {
+                transcription.apiKey = summary.apiKey
+            }
+        }
     }
     @Published var autoSummarize = UserDefaults.standard.object(forKey: "autoSummarize") as? Bool ?? true {
         didSet { UserDefaults.standard.set(autoSummarize, forKey: "autoSummarize") }
@@ -204,24 +217,49 @@ final class LibraryStore: ObservableObject {
         folder.appendingPathComponent(recording.fileName)
     }
 
-    func register(file: URL, startedAt: Date, duration: Double, call: DetectedCall?, notes: String? = nil) {
+    func registerProcessing(file: URL, startedAt: Date, duration: Double, call: DetectedCall?,
+                            notes: String? = nil) -> Int64? {
         var bundleID: String?
         if case .application(let id) = call?.source { bundleID = id }
         let recording = Recording(
             fileName: file.lastPathComponent, startedAt: startedAt, duration: duration,
             sourceLabel: call?.label, sourceBundleID: bundleID, autoStarted: call != nil,
-            format: RecordingFile.fileExtension, sizeBytes: Self.size(of: file), notes: notes,
+            format: RecordingFile.fileExtension, sizeBytes: 0, notes: notes,
             transcriptStatus: .none, fileMissing: false)
         do {
-            let saved = try database.saveRecording(recording)
-            if autoTranscribe, aiService != .off, transcriptionSettings() != nil { transcribe(saved) }
+            guard let id = try database.saveRecording(recording).id else { return nil }
+            processing[id] = file.lastPathComponent
+            return id
+        } catch {
+            Log.write("could not index \(file.lastPathComponent): \(error)")
+            return nil
+        }
+    }
+
+    func finishProcessing(_ id: Int64, file: URL, duration: Double) {
+        processing[id] = nil
+        guard (try? database.recording(id: id)) != nil else {
+            try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
+            return
+        }
+        do {
+            try database.setFile(sizeBytes: Self.size(of: file), duration: duration, recordingID: id)
+            if autoTranscribe, aiService != .off, transcriptionSettings() != nil,
+               let saved = try database.recording(id: id) {
+                transcribe(saved)
+            }
         } catch {
             Log.write("could not index \(file.lastPathComponent): \(error)")
         }
     }
 
+    func abandonProcessing(_ id: Int64) {
+        processing[id] = nil
+        try? database.deleteRecording(id: id)
+    }
+
     func transcribe(_ recording: Recording, summarizeAfter: Bool? = nil) {
-        guard let id = recording.id, !transcribing.contains(id) else { return }
+        guard let id = recording.id, !transcribing.contains(id), processing[id] == nil else { return }
         guard aiService != .off else {
             transcriptionErrors[id] = Self.aiIsOff
             return
@@ -246,19 +284,23 @@ final class LibraryStore: ObservableObject {
                     let job = try await client.submit(file)
                     try database.setTranscriptJob(id: job.id, startedAt: Date(), recordingID: id)
                     await pollJob(job.id, recording: recording, client: client, polls: 0, summarizeAfter: summarizeAfter)
+                } catch is CancellationError {
+                    return
                 } catch {
                     finishTranscription(id, recording: recording, settings: settings, error: error)
                 }
             }
             return
         }
-        Task {
+        transcriptionJobs[id] = Task {
             do {
                 let started = Date()
                 let result = try await client.transcribe(file)
                 try saveTranscription(result, recording: recording, model: settings.model, started: started,
                                       summarizeAfter: summarizeAfter)
                 finishTranscription(id, recording: recording, settings: settings, error: nil)
+            } catch is CancellationError {
+                return
             } catch {
                 finishTranscription(id, recording: recording, settings: settings, error: error)
             }
@@ -284,10 +326,17 @@ final class LibraryStore: ObservableObject {
                 case .running(let waitHint):
                     hint = waitHint
                 case .done(let response):
-                    let result = try await client.finish(response, file: url(for: recording)) { try await client.submitAndWait($0) }
-                    try saveTranscription(result, recording: recording, model: client.settings.model, started: started,
-                                          summarizeAfter: summarizeAfter)
-                    finishTranscription(id, recording: recording, settings: client.settings, error: nil)
+                    do {
+                        let result = try await client.finish(response, file: url(for: recording)) {
+                            try await client.submitAndWait($0)
+                        }
+                        try saveTranscription(result, recording: recording, model: client.settings.model, started: started,
+                                              summarizeAfter: summarizeAfter)
+                        finishTranscription(id, recording: recording, settings: client.settings, error: nil)
+                    } catch is CancellationError {
+                    } catch {
+                        finishTranscription(id, recording: recording, settings: client.settings, error: error)
+                    }
                     return
                 case .failed(let message):
                     finishTranscription(id, recording: recording, settings: client.settings,
@@ -300,7 +349,7 @@ final class LibraryStore: ObservableObject {
                 finishTranscription(id, recording: recording, settings: client.settings, error: error)
                 return
             } catch {
-                Log.write("poll of job \(jobID) failed (\(polls)): \(error)")
+                Log.write("poll of job \(jobID) failed (\(polls)): \(Log.describe(error))")
             }
         }
         await client.cancel(jobID)
@@ -327,7 +376,9 @@ final class LibraryStore: ObservableObject {
             let message: String
             if case TranscriptionError.server(200, let detail) = error { message = detail } else { message = error.localizedDescription }
             transcriptionErrors[id] = message
-            Log.write("transcription of \(recording.fileName) failed: \(error)")
+            Log.write("transcription of \(recording.fileName) failed: \(Log.describe(error))")
+        } else {
+            transcriptionErrors[id] = nil
         }
         transcribing.remove(id)
         transcriptionJobs[id] = nil
@@ -357,10 +408,11 @@ final class LibraryStore: ObservableObject {
         summarizing.insert(id)
         summaryErrors[id] = nil
 
-        let client = SummaryClient(settings: settings)
-        let model = settings.model
         let knownTags = allTags
         Task {
+            let settings = await withSummaryModel(settings)
+            let client = SummaryClient(settings: settings)
+            let model = settings.model
             do {
                 let started = Date()
                 let result = try await client.summarize(segments, knownTags: knownTags)
@@ -368,7 +420,7 @@ final class LibraryStore: ObservableObject {
                 Log.write(String(format: "summarised %@ in %.1f s", recording.fileName, Date().timeIntervalSince(started)))
             } catch {
                 summaryErrors[id] = error.localizedDescription
-                Log.write("summary of \(recording.fileName) failed: \(error)")
+                Log.write("summary of \(recording.fileName) failed: \(Log.describe(error))")
             }
             summarizing.remove(id)
             if settings.provider == .digisensus { await account.refresh() }
@@ -381,8 +433,47 @@ final class LibraryStore: ObservableObject {
             return
         }
         summaryConnectionStatus = "Checking…"
-        let client = SummaryClient(settings: settings)
-        Task { summaryConnectionStatus = await client.checkConnection() }
+        Task {
+            let checked = await withSummaryModel(settings)
+            let status = await SummaryClient(settings: checked).checkConnection()
+            if summarySettings().map({ Self.sameService($0, settings) }) == true { summaryConnectionStatus = status }
+        }
+    }
+
+    private static func sameService(_ a: some AIServiceSettings, _ b: some AIServiceSettings) -> Bool {
+        a.provider == b.provider && a.preset == b.preset && a.server == b.server && a.apiKey == b.apiKey
+    }
+
+    private func withSummaryModel(_ settings: SummarySettings) async -> SummarySettings {
+        guard settings.provider != .digisensus, settings.model.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return settings
+        }
+        let listed = await ModelList.fetch(settings, for: .summary)
+        guard let model = ModelList.likelyChatModel(in: listed.names) else { return settings }
+        Log.write("summary model not set, using \(model)")
+        var chosen = settings
+        chosen.model = model
+        if Self.sameService(summary, settings), summary.model.isEmpty { summary.model = model }
+        return chosen
+    }
+
+    func choose(_ preset: AIPreset, for purpose: AIPurpose) {
+        switch purpose {
+        case .transcription:
+            guard transcription.preset != preset.id else { return }
+            var settings = transcription
+            settings.use(preset, for: .transcription, keyFrom: summary)
+            if settings.apiKey.isEmpty { settings.apiKey = Self.storedKey("transcription", preset: preset.id) }
+            transcription = settings
+            connectionStatus = nil
+        case .summary:
+            guard summary.preset != preset.id else { return }
+            var settings = summary
+            settings.use(preset, for: .summary, keyFrom: transcription)
+            if settings.apiKey.isEmpty { settings.apiKey = Self.storedKey("summary", preset: preset.id) }
+            summary = settings
+            summaryConnectionStatus = nil
+        }
     }
 
     func checkConnection() {
@@ -392,10 +483,13 @@ final class LibraryStore: ObservableObject {
         }
         connectionStatus = "Checking…"
         let client = TranscriptionClient(settings: settings)
-        Task { connectionStatus = await client.checkConnection() }
+        Task {
+            let status = await client.checkConnection()
+            if transcriptionSettings().map({ Self.sameService($0, settings) }) == true { connectionStatus = status }
+        }
     }
 
-    private static let signInNeeded = "Sign in to Digisensus in Settings › Transcription & AI, or choose your own service."
+    private static let signInNeeded = "Sign in to Digisensus in Settings › Transcription & AI, or choose Local & Cloud API."
     private static let aiIsOff = "Transcription is off. Choose a service in Settings › Transcription & AI."
 
     func transcriptionSettings() -> TranscriptionSettings? {
@@ -422,12 +516,41 @@ final class LibraryStore: ObservableObject {
         UserDefaults.standard.string(forKey: key).flatMap(AIProvider.init(rawValue:)) ?? .digisensus
     }
 
+    private static func keyAccount(_ purpose: String, preset: String) -> String {
+        "\(purpose)-api-key.\(preset)"
+    }
+
+    private static func storedKey(_ purpose: String, preset: String) -> String {
+        let account = keyAccount(purpose, preset: preset)
+        if let key = Keychain.string(account) { return key }
+        guard let legacy = Keychain.string("\(purpose)-api-key") else { return "" }
+        Keychain.set(legacy, for: account)
+        Keychain.set(nil, for: "\(purpose)-api-key")
+        return legacy
+    }
+
+    private static func migrateServerAddresses() {
+        let defaults = UserDefaults.standard
+        let migrated = "serverAddressesAreAPIRoots"
+        guard !defaults.bool(forKey: migrated) else { return }
+        for key in ["transcriptionServer", "summaryServer"] {
+            if let address = defaults.string(forKey: key) {
+                defaults.set(URL.apiRoot(fromLegacyAddress: address), forKey: key)
+            }
+        }
+        defaults.set(true, forKey: migrated)
+    }
+
     private static func loadSummarySettings() -> SummarySettings {
+        migrateServerAddresses()
         let defaults = UserDefaults.standard
         var settings = SummarySettings()
         settings.provider = provider(forKey: "summaryProvider")
         settings.server = defaults.string(forKey: "summaryServer") ?? settings.server
-        settings.apiKey = Keychain.string("summary-api-key") ?? ""
+        settings.preset = defaults.string(forKey: "summaryPreset")
+            ?? AIPreset.matching(server: settings.server, for: .summary).id
+        if let fixed = AIPreset.named(settings.preset)?.server { settings.server = fixed }
+        settings.apiKey = storedKey("summary", preset: settings.preset)
         settings.model = defaults.string(forKey: "summaryModel") ?? settings.model
         return settings
     }
@@ -435,17 +558,22 @@ final class LibraryStore: ObservableObject {
     private func saveSummarySettings(keyChanged: Bool) {
         let defaults = UserDefaults.standard
         defaults.set(summary.provider.rawValue, forKey: "summaryProvider")
+        defaults.set(summary.preset, forKey: "summaryPreset")
         defaults.set(summary.server, forKey: "summaryServer")
         defaults.set(summary.model, forKey: "summaryModel")
-        if keyChanged { Keychain.set(summary.apiKey, for: "summary-api-key") }
+        if keyChanged { Keychain.set(summary.apiKey, for: Self.keyAccount("summary", preset: summary.preset)) }
     }
 
     private static func loadTranscriptionSettings() -> TranscriptionSettings {
+        migrateServerAddresses()
         let defaults = UserDefaults.standard
         var settings = TranscriptionSettings()
         settings.provider = provider(forKey: "transcriptionProvider")
         settings.server = defaults.string(forKey: "transcriptionServer") ?? settings.server
-        settings.apiKey = Keychain.string("transcription-api-key") ?? ""
+        settings.preset = defaults.string(forKey: "transcriptionPreset")
+            ?? AIPreset.matching(server: settings.server, for: .transcription).id
+        if let fixed = AIPreset.named(settings.preset)?.server { settings.server = fixed }
+        settings.apiKey = storedKey("transcription", preset: settings.preset)
         settings.model = defaults.string(forKey: "transcriptionModel") ?? settings.model
         settings.language = defaults.string(forKey: "transcriptionLanguage") ?? ""
         return settings
@@ -454,15 +582,17 @@ final class LibraryStore: ObservableObject {
     private func saveTranscriptionSettings(keyChanged: Bool) {
         let defaults = UserDefaults.standard
         defaults.set(transcription.provider.rawValue, forKey: "transcriptionProvider")
+        defaults.set(transcription.preset, forKey: "transcriptionPreset")
         defaults.set(transcription.server, forKey: "transcriptionServer")
         defaults.set(transcription.model, forKey: "transcriptionModel")
         defaults.set(transcription.language, forKey: "transcriptionLanguage")
-        if keyChanged { Keychain.set(transcription.apiKey, for: "transcription-api-key") }
+        if keyChanged { Keychain.set(transcription.apiKey, for: Self.keyAccount("transcription", preset: transcription.preset)) }
     }
 
     func syncFolder() {
         let folder = folder
         let database = database
+        let processingFiles = Set(processing.values)
         Task.detached(priority: .utility) {
             guard let files = try? FileManager.default.contentsOfDirectory(
                 at: folder, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey]) else { return }
@@ -473,7 +603,7 @@ final class LibraryStore: ObservableObject {
                     try database.saveRecording(Self.describe(file))
                     try? FileManager.default.removeItem(at: RecordingFile.notesURL(for: file))
                 }
-                try database.markMissing(except: Set(audio.map(\.lastPathComponent)))
+                try database.markMissing(except: Set(audio.map(\.lastPathComponent)).union(processingFiles))
             } catch {
                 Log.write("folder sync failed: \(error)")
             }
@@ -543,8 +673,9 @@ final class LibraryStore: ObservableObject {
     }
 
     func save(_ recording: Recording) {
+        guard let id = recording.id else { return }
         do {
-            try database.update(recording)
+            try database.setTitleAndNotes(title: recording.title, notes: recording.notes, recordingID: id)
         } catch {
             Log.write("could not save \(recording.fileName): \(error)")
         }
@@ -564,6 +695,13 @@ final class LibraryStore: ObservableObject {
 
     func trash(_ recording: Recording) {
         guard let id = recording.id else { return }
+        transcriptionJobs[id]?.cancel()
+        transcriptionJobs[id] = nil
+        transcribing.remove(id)
+        if let jobID = recording.transcriptJobID, let settings = transcriptionSettings(), settings.provider == .digisensus {
+            let client = TranscriptionClient(settings: settings)
+            Task { await client.cancel(jobID) }
+        }
         do {
             let file = url(for: recording)
             if FileManager.default.fileExists(atPath: file.path) {
@@ -611,8 +749,8 @@ enum AIService: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .digisensus: return "Digisensus"
-        case .own: return "Own service"
+        case .digisensus: return "Digisensus FREE"
+        case .own: return "Local & Cloud API"
         case .off: return "Off"
         }
     }

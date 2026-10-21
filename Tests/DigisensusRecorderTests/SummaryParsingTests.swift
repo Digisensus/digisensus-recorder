@@ -24,6 +24,10 @@ struct SummaryParsingTests {
         #expect(summary.topic == nil)
     }
 
+    @Test func rejectsHalfAJSONAnswer() {
+        #expect(throws: SummaryError.self) { try SummaryClient.parse(#"{"topic": "Pricing", "headline": "They agreed"#) }
+    }
+
     @Test func rejectsAnEmptyAnswer() {
         #expect(throws: SummaryError.self) { try SummaryClient.parse("<think>still thinking") }
     }

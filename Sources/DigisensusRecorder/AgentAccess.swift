@@ -77,7 +77,7 @@ final class AgentAccess: ObservableObject {
         isListening = server?.isListening ?? false
     }
 
-    private enum Scope { case status, read, control }
+    private enum Scope { case read, control }
 
     private struct CommandFailure: Error {
         let message: String
@@ -104,19 +104,24 @@ final class AgentAccess: ObservableObject {
     }
 
     private func record(client: String, command: String, failure: String?) {
+        let client = Self.printable(client)
+        let command = Self.printable(command)
         activity.insert(AgentActivity(client: client, command: command, failure: failure), at: 0)
         if activity.count > 50 { activity.removeLast(activity.count - 50) }
         Log.write("agent \(client): \(command)\(failure.map { " FAILED: \($0)" } ?? "")")
     }
 
+    private static func printable(_ text: String) -> String {
+        String(text.unicodeScalars.map { $0.properties.isWhitespace || !($0.value < 32 || $0.value == 127) ? Character($0) : " " }
+            .prefix(64))
+    }
+
     private func require(_ scope: Scope) throws {
         switch scope {
-        case .status:
-            return
         case .read where !canReadArchive:
-            throw CommandFailure(message: "Reading the archive is not allowed. The user can enable it in Digisensus Recorder › AI Agents.")
+            throw CommandFailure(message: "Reading the archive is not allowed. The user can enable it in Settings › Advanced › AI agents.")
         case .control where !canControlRecording:
-            throw CommandFailure(message: "Controlling recording is not allowed. The user can enable it in Digisensus Recorder › AI Agents.")
+            throw CommandFailure(message: "Controlling recording is not allowed. The user can enable it in Settings › Advanced › AI agents.")
         default:
             return
         }
@@ -202,6 +207,9 @@ final class AgentAccess: ObservableObject {
         case "transcribe":
             try require(.control)
             let recording = try find(arguments)
+            guard library.processing[recording.rowID] == nil else {
+                throw CommandFailure(message: "The recording is still being processed. Try again in a moment.")
+            }
             library.transcribe(recording)
             return ["started": true, "note": "Poll get_recording until transcript_status is done or failed."]
 
@@ -261,6 +269,7 @@ final class AgentAccess: ObservableObject {
             "transcript_status": recording.transcriptStatus.rawValue,
         ]
         if let id = recording.id {
+            if library.processing[id] != nil { result["processing"] = true }
             if library.transcribing.contains(id) { result["transcribing"] = true }
             if library.summarizing.contains(id) { result["summarizing"] = true }
             if let error = library.transcriptionErrors[id] { result["transcription_error"] = error }
@@ -285,7 +294,7 @@ final class AgentAccess: ObservableObject {
             return srt
                 ? String(format: "%02d:%02d:%02d,%03d", total / 3600, total / 60 % 60, total % 60,
                          Int((time - Double(total)) * 1000))
-                : String(format: "%d:%02d", total / 60, total % 60)
+                : RecorderModel.clock(time)
         }
         switch format {
         case "markdown", "md":

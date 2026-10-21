@@ -1,9 +1,10 @@
 import Foundation
 
-struct SummarySettings: Equatable {
-    static let defaultServer = "http://localhost:9000"
+struct SummarySettings: Equatable, AIServiceSettings {
+    static let defaultServer = "http://localhost:9000/v1"
 
     var provider = AIProvider.digisensus
+    var preset = AIPreset.local.id
     var server = SummarySettings.defaultServer
     var apiKey = ""
     var model = "qwen"
@@ -21,6 +22,8 @@ enum SummaryError: LocalizedError {
     case badServerURL
     case server(Int, String)
     case emptyAnswer
+    case cutOff
+    case declined
 
     var errorDescription: String? {
         switch self {
@@ -28,12 +31,15 @@ enum SummaryError: LocalizedError {
         case .server(let code, let detail) where AIProvider.explainsRefusal(status: code): return detail
         case .server(let code, let detail): return "The summary server answered \(code): \(detail)"
         case .emptyAnswer: return "The summary server returned no usable text."
+        case .cutOff: return "The summary model stopped before finishing its answer."
+        case .declined: return "The model declined to summarise this call."
         }
     }
 }
 
 struct SummaryClient {
     let settings: SummarySettings
+    var session: URLSession = .app
 
     private static let instructions = """
         You summarise recorded phone calls and meetings from their transcripts. The transcript labels \
@@ -70,51 +76,68 @@ struct SummaryClient {
         if !knownTags.isEmpty {
             instructions += "\nTags already in use (reuse one when it fits): \(knownTags.prefix(40).joined(separator: ", "))."
         }
-        var body: [String: Any] = [
+        let attempts = api == .anthropic
+            ? Self.messagesAttempts(model: settings.model, instructions: instructions, transcript: transcript)
+            : chatCompletionAttempts(instructions: instructions, transcript: transcript)
+        for (index, body) in attempts.enumerated() {
+            let isLast = index == attempts.count - 1
+            do {
+                return try Self.parse(try await complete(body))
+            } catch SummaryError.server(let code, _) where (code == 400 || code == 422) && !isLast {
+                continue
+            } catch SummaryError.cutOff where !isLast {
+                continue
+            }
+        }
+        throw SummaryError.emptyAnswer
+    }
+
+    private var api: AIPreset.API { settings.api(for: .summary) }
+
+    private func chatCompletionAttempts(instructions: String, transcript: String) -> [[String: Any]] {
+        let plain: [String: Any] = [
             "model": settings.model,
-            "temperature": 0.2,
-            "max_tokens": 900,
             "messages": [
                 ["role": "system", "content": instructions],
                 ["role": "user", "content": "Transcript:\n\(transcript)"],
             ],
-            "chat_template_kwargs": ["enable_thinking": false],
         ]
-        let answer: String
-        do {
-            answer = try await complete(body)
-        } catch SummaryError.server(let code, _) where code == 400 || code == 422 {
-            body["chat_template_kwargs"] = nil
-            answer = try await complete(body)
+        let tuned = plain.merging(["temperature": 0.2, "max_tokens": 900]) { $1 }
+        var attempts = [tuned, plain]
+        if sendsChatTemplateHints {
+            attempts.insert(tuned.merging(["chat_template_kwargs": ["enable_thinking": false]]) { $1 }, at: 0)
         }
-        return try Self.parse(answer)
+        return attempts
+    }
+
+    private static func messagesAttempts(model: String, instructions: String, transcript: String) -> [[String: Any]] {
+        let plain: [String: Any] = [
+            "model": model,
+            "max_tokens": 16000,
+            "system": instructions,
+            "messages": [["role": "user", "content": "Transcript:\n\(transcript)"]],
+        ]
+        return [plain.merging(["output_config": ["effort": "low"]]) { $1 }, plain]
+    }
+
+    private var sendsChatTemplateHints: Bool {
+        settings.provider == .digisensus || settings.servicePreset(for: .summary).place != .cloud
     }
 
     func checkConnection() async -> String {
-        guard let base = URL(string: settings.server) else { return "Not a valid URL." }
-        var request = URLRequest(url: base.appendingPathComponent("v1/models"), timeoutInterval: 6)
-        request.authorize(apiKey: settings.apiKey, provider: settings.provider)
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else {
-            return "No answer from \(settings.server)."
-        }
-        let models = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["data"] as? [[String: Any]]
-        let names = models?.compactMap { $0["id"] as? String } ?? []
-        if names.isEmpty { return "Connected." }
-        return names.contains(settings.model)
-            ? "Connected; model “\(settings.model)” is available."
-            : "Connected, but it has no model “\(settings.model)”. It offers: \(names.joined(separator: ", "))."
+        await ConnectionCheck.run(settings, for: .summary, session: session)
     }
 
     private func complete(_ body: [String: Any]) async throws -> String {
-        guard let base = URL(string: settings.server), base.scheme != nil else { throw SummaryError.badServerURL }
-        var request = URLRequest(url: base.appendingPathComponent("v1/chat/completions"), timeoutInterval: 600)
+        let path = api == .anthropic ? "v1/messages" : "v1/chat/completions"
+        guard let url = URL.endpoint(path, on: settings.server) else { throw SummaryError.badServerURL }
+        var request = URLRequest(url: url, timeoutInterval: 600)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.authorize(apiKey: settings.apiKey, provider: settings.provider)
+        request.authorize(apiKey: settings.apiKey, provider: settings.provider, api: api)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         guard status == 200 else {
@@ -123,12 +146,26 @@ struct SummaryClient {
             AppVersion.noteRefusal(status: status)
             throw SummaryError.server(status, detail)
         }
-        guard let choices = json?["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String, !content.isEmpty else {
-            throw SummaryError.emptyAnswer
-        }
+        if Self.wasCutOff(json) { throw SummaryError.cutOff }
+        let content = api == .anthropic ? try Self.messagesText(json) : Self.chatCompletionText(json)
+        guard let content, !content.isEmpty else { throw SummaryError.emptyAnswer }
         return content
+    }
+
+    private static func wasCutOff(_ json: [String: Any]?) -> Bool {
+        let choice = (json?["choices"] as? [[String: Any]])?.first
+        return choice?["finish_reason"] as? String == "length" || json?["stop_reason"] as? String == "max_tokens"
+    }
+
+    private static func chatCompletionText(_ json: [String: Any]?) -> String? {
+        let choices = json?["choices"] as? [[String: Any]]
+        return (choices?.first?["message"] as? [String: Any])?["content"] as? String
+    }
+
+    private static func messagesText(_ json: [String: Any]?) throws -> String? {
+        if json?["stop_reason"] as? String == "refusal" { throw SummaryError.declined }
+        let blocks = json?["content"] as? [[String: Any]] ?? []
+        return blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
     }
 
     static func parse(_ answer: String) throws -> CallSummary {
@@ -154,6 +191,7 @@ struct SummaryClient {
 
         let prose = clean(text.replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```", with: ""))
         guard !prose.isEmpty else { throw SummaryError.emptyAnswer }
+        guard !prose.hasPrefix("{") else { throw SummaryError.cutOff }
         return CallSummary(headline: firstSentence(of: prose), summary: prose)
     }
 

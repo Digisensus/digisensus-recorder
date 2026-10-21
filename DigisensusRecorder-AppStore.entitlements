@@ -20,6 +20,23 @@
     <!-- Recordings live in ~/Music/Digisensus Recorder. -->
     <key>com.apple.security.assets.music.read-write</key>
     <true/>
+    <!-- On its first launch, copies the library, settings and sign-in of the direct download. -->
+    <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+    <array>
+        <string>/Library/Application Support/Digisensus Recorder/</string>
+        <string>/Library/Preferences/com.digisensus.recorder.plist</string>
+    </array>
+    <!-- Reads browser tab addresses to name browser calls by their meeting app. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <array>
+        <string>com.google.Chrome</string>
+        <string>com.microsoft.edgemac</string>
+        <string>com.brave.Browser</string>
+        <string>company.thebrowser.Browser</string>
+        <string>com.apple.Safari</string>
+    </array>
     <!-- Shared with the bundled `recorder` helper: the agent socket lives here. -->
     <key>com.apple.security.application-groups</key>
     <array>

@@ -55,7 +55,6 @@ final class OggOpusEncoder {
         FileManager.default.createFile(atPath: url.path, contents: nil)
         handle = try FileHandle(forWritingTo: url)
         guard ogg_stream_init(&stream, Int32.random(in: 1...Int32.max)) == 0 else {
-            opus_multistream_encoder_destroy(encoder)
             throw OggOpusError.ogg("start a stream")
         }
         try writePacket(header(), granule: 0, first: true, last: false)

@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.2.0</string>
+    <string>1.3.0</string>
     <key>CFBundleVersion</key>
-    <string>110</string>
+    <string>111</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <!-- Over-the-air updates (Sparkle). The feed address comes from the app (it follows the
@@ -52,10 +52,12 @@
         <true/>
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Digisensus Recorder sends recordings to the transcription server on your network.</string>
+    <string>Digisensus Recorder sends recordings and transcripts to the AI servers you choose on your network.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Digisensus Recorder records your microphone into the right channel of the recording.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Digisensus Recorder checks your browser's open tabs to name a browser call by its meeting app, like Zoom or Teams. Without this, the call is named after the browser.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>Digisensus Recorder records the selected app's audio into the left channel of the recording.</string>
+    <string>Digisensus Recorder records the other side of your calls, from the calling app or system audio, into the left channel of the recording.</string>
 </dict>
 </plist>

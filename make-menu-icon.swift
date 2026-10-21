@@ -1,17 +1,14 @@
-// Renders Resources/MenuIcon.png (+@2x): a monochrome template silhouette of the logo
-// for the menu bar. macOS tints template images to match light/dark menu bars.
 import AppKit
 
 let source = NSBitmapImageRep(data: try! Data(contentsOf: URL(fileURLWithPath: "Resources/logo-source.png")))!
 let pixels = source.pixelsWide
-// Artwork bounds inside the padded source canvas (fractions of the canvas).
 let cropX = 0.19, cropY = 0.172, cropSize = 0.62
 
 func render(_ size: Int) -> Data {
     let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8,
                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    let samples = 6 // supersampling per axis for smooth edges
+    let samples = 6
     for y in 0..<size {
         for x in 0..<size {
             var covered = 0
@@ -35,4 +32,3 @@ func render(_ size: Int) -> Data {
 
 try render(18).write(to: URL(fileURLWithPath: "Resources/MenuIcon.png"))
 try render(36).write(to: URL(fileURLWithPath: "Resources/MenuIcon@2x.png"))
-try render(288).write(to: URL(fileURLWithPath: "Resources/MenuIcon-preview.png"))

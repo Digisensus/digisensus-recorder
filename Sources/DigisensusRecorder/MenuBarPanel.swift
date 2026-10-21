@@ -153,7 +153,7 @@ struct MenuBarPanel: View {
             }
 
             HStack(spacing: 8) {
-                Button(action: openApp) { Text("Open Digisensus").frame(maxWidth: .infinity) }
+                Button(action: openApp) { Text("Open Digisensus Recorder").frame(maxWidth: .infinity) }
                     .buttonStyle(StrongButtonStyle(height: 40))
                 Button("Quit") { NSApp.terminate(nil) }
                     .buttonStyle(StrongButtonStyle(fill: Palette.card, ink: Palette.ink, height: 40))
@@ -202,6 +202,7 @@ struct MenuBarPanel: View {
             Group {
                 switch CallState(recording, in: library) {
                 case .summarized(let headline): Text(headline).foregroundStyle(Palette.ink.opacity(0.8))
+                case .processing: Text("Processing…").italic().foregroundStyle(Palette.tertiary)
                 case .transcribing: Text("Transcribing…").italic().foregroundStyle(Palette.you)
                 case .summarizing: Text("Summarizing…").italic().foregroundStyle(Palette.you)
                 case .transcribed: Text("Transcript ready").italic().foregroundStyle(Palette.tertiary)

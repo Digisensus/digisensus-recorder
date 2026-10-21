@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsPage: View {
@@ -52,19 +53,29 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
-            Section("Recording") {
-                Picker("Your microphone", selection: $model.micID) {
-                    ForEach(model.mics) { Text($0.name).tag($0.id) }
+            Section {
+                Group {
+                    Picker("Your microphone", selection: $model.micID) {
+                        ForEach(model.mics) { Text($0.name).tag($0.id) }
+                    }
+                    Picker("Other side", selection: $model.source) {
+                        ForEach(model.apps) { Text($0.name).tag($0.source) }
+                    }
+                    Toggle(isOn: $model.cleanUpAudio) {
+                        Text("Clean up audio")
+                        Text("Evens out both voices and removes echo when you're not using headphones.")
+                    }
                 }
-                Picker("Other side", selection: $model.source) {
-                    ForEach(model.apps) { Text($0.name).tag($0.source) }
-                }
-                Toggle(isOn: $model.cleanUpAudio) {
-                    Text("Clean up audio")
-                    Text("Evens out both voices and removes echo when you're not using headphones.")
+                .disabled(model.isRecording)
+            } header: {
+                Text("Recording")
+            } footer: {
+                if model.isRecording {
+                    Text("These can be changed after this recording.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .disabled(model.isRecording)
 
             Section("Automation") {
                 Toggle(isOn: $model.autoRecord) {
@@ -94,12 +105,13 @@ private struct GeneralSettings: View {
                         HStack(spacing: 6) {
                             Image(systemName: permissions.isGranted(kind) ? "checkmark" : "xmark")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(permissions.isGranted(kind) ? Palette.good : Palette.recordInk)
+                                .foregroundStyle(permissions.isGranted(kind) ? Palette.good
+                                                 : kind.isRequired ? Palette.recordInk : Palette.tertiary)
                             Text(kind.name)
                         }
                     }
                     Spacer()
-                    if let missing = permissions.missing.first {
+                    if let missing = permissions.missing.first(where: \.isRequired) ?? permissions.missing.first {
                         Button("Allow \(missing.name)…") { permissions.request(missing) }
                     } else {
                         Text("All allowed").font(.caption).foregroundStyle(.secondary)
@@ -167,15 +179,8 @@ private struct AISettings: View {
                     Section("Invite friends") { InviteRows(account: account, form: form) }
                 }
             case .own:
-                Section {
-                    OwnServiceGrid(library: library)
-                } header: {
-                    Text("Your AI service")
-                } footer: {
-                    Text("Any OpenAI-compatible speech-to-text (/v1/audio/transcriptions) and chat (/v1/chat/completions) API. The two can be the same server.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                OwnServiceSection(library: library, purpose: .transcription, settingsPath: \.transcription)
+                OwnServiceSection(library: library, purpose: .summary, settingsPath: \.summary)
             case .off:
                 Section {
                     Text("Recordings stay audio only and nothing leaves this Mac. Pick a service above whenever you want transcripts, summaries and tags.")
@@ -231,7 +236,6 @@ private struct DigisensusAccountRows: View {
             Toggle(isOn: $form.acceptedTerms) {
                 Text(form.hasInviteCode ? "I accept the Terms of Service and the Referral Program Terms"
                                         : "I accept the Terms of Service")
-                Text(DigisensusAccount.trainingNotice + " You can turn this off after signing in.")
             }
             HStack {
                 Link("Terms", destination: DigisensusAccount.termsURL)
@@ -332,7 +336,6 @@ struct TrainingToggle: View {
     var body: some View {
         Toggle(isOn: Binding(get: { account.trainingEnabled }, set: { account.setTraining(enabled: $0) })) {
             Text("Help improve Digisensus speech recognition")
-            Text(DigisensusAccount.trainingNotice)
         }
     }
 }
@@ -425,44 +428,274 @@ private struct InviteRows: View {
     }
 }
 
-private struct OwnServiceGrid: View {
+private struct OwnServiceSection<Settings: AIServiceSettings>: View {
     @ObservedObject var library: LibraryStore
+    let purpose: AIPurpose
+    let settingsPath: ReferenceWritableKeyPath<LibraryStore, Settings>
+    @StateObject private var catalog = ModelCatalog()
+    @State private var committedServer: String?
+    @FocusState private var editingServer: Bool
+
+    private static var controlWidth: CGFloat { 300 }
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-            GridRow {
-                Color.clear.frame(width: 1, height: 1)
-                Text("Transcription").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Text("Summaries").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        let settings = library[keyPath: settingsPath]
+        let preset = settings.servicePreset(for: purpose)
+        Section {
+            LabeledContent("Service") {
+                ServicePicker(purposes: [purpose], selection: preset) { library.choose($0, for: purpose) }
+                    .dropdownBox()
+                    .frame(width: Self.controlWidth)
             }
-            GridRow {
-                Text("Server address")
-                TextField("Transcription server", text: $library.transcription.server,
-                          prompt: Text("https://api.example.com"))
-                TextField("Summary server", text: $library.summary.server, prompt: Text("https://api.example.com"))
-            }
-            GridRow {
-                Text("API key")
-                SecureField("Transcription API key", text: $library.transcription.apiKey, prompt: Text("Optional"))
-                SecureField("Summary API key", text: $library.summary.apiKey, prompt: Text("Optional"))
-            }
-            GridRow {
-                Text("Model")
-                TextField("Transcription model", text: $library.transcription.model, prompt: Text("whisper-1"))
-                TextField("Summary model", text: $library.summary.model, prompt: Text("Model name"))
-            }
-            GridRow {
-                Button("Test Connection") {
-                    library.checkConnection()
-                    library.checkSummaryConnection()
+            if let fixed = preset.server {
+                LabeledContent("Server address") {
+                    Text(fixed)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .help(fixed)
+                        .frame(width: Self.controlWidth, alignment: .leading)
                 }
-                Text(library.connectionStatus ?? "").font(.caption).foregroundStyle(.secondary)
-                Text(library.summaryConnectionStatus ?? "").font(.caption).foregroundStyle(.secondary)
+            } else {
+                LabeledContent {
+                    TextField("Server address", text: binding(\.server), prompt: Text(preset.addressPrompt(for: purpose)))
+                        .focused($editingServer)
+                        .onSubmit(commitServer)
+                        .labelsHidden()
+                        .multilineTextAlignment(.leading)
+                        .frame(width: Self.controlWidth)
+                } label: {
+                    Text("Server address")
+                    Text("Include the version path the server documents, usually /v1, as in \(preset.addressPrompt(for: purpose)). "
+                         + "An address without a path gets /v1 added.")
+                }
             }
+            LabeledContent("API key") {
+                SecureField("API key", text: binding(\.apiKey), prompt: Text(preset.keyPrompt))
+                    .labelsHidden()
+                    .multilineTextAlignment(.leading)
+                    .frame(width: Self.controlWidth)
+            }
+            LabeledContent {
+                ModelChooser(purpose: purpose, preset: preset, catalog: catalog, model: binding(\.model))
+                    .frame(width: Self.controlWidth)
+            } label: {
+                Text(purpose == .transcription ? "ASR model" : "LLM model")
+                if let hint = catalog.hint { Text(hint) }
+            }
+            LabeledContent {
+                Button("Test Connection") {
+                    commitServer()
+                    catalog.reload()
+                    if purpose == .transcription { library.checkConnection() } else { library.checkSummaryConnection() }
+                }
+            } label: {
+                Text(status ?? "")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            Text(purpose == .transcription ? "Transcription (speech-to-text)" : "Summaries (LLM)")
         }
         .textFieldStyle(.roundedBorder)
-        .labelsHidden()
         .autocorrectionDisabled()
+        .onAppear { committedServer = settings.server }
+        .onChange(of: preset.id) { commitServer() }
+        .onChange(of: editingServer) { _, editing in if !editing { commitServer() } }
+        .task(id: "\(listedServer(settings, preset))\n\(settings.apiKey)\n\(catalog.reloads)") {
+            var listed = settings
+            listed.server = listedServer(settings, preset)
+            guard await catalog.load(listed, for: purpose) else { return }
+            if case .listed(let offered) = catalog.state, !offered.contains(settings.model),
+               let suggested = preset.suggestedModel(for: purpose), offered.contains(suggested) {
+                library[keyPath: settingsPath].model = suggested
+            }
+        }
+    }
+
+    private func listedServer(_ settings: Settings, _ preset: AIPreset) -> String {
+        preset.server == nil ? committedServer ?? settings.server : settings.server
+    }
+
+    private func commitServer() {
+        let address = URL.withoutCredentials(library[keyPath: settingsPath].server)
+        if address != library[keyPath: settingsPath].server { library[keyPath: settingsPath].server = address }
+        committedServer = address
+    }
+
+    private var status: String? {
+        purpose == .transcription ? library.connectionStatus : library.summaryConnectionStatus
+    }
+
+    private func binding(_ field: WritableKeyPath<Settings, String>) -> Binding<String> {
+        Binding(get: { library[keyPath: settingsPath][keyPath: field] },
+                set: { library[keyPath: settingsPath][keyPath: field] = $0 })
+    }
+}
+
+struct ServicePicker: View {
+    let purposes: [AIPurpose]
+    let selection: AIPreset
+    let choose: (AIPreset) -> Void
+
+    var body: some View {
+        let item = { (preset: AIPreset) in PopUpMenu.Entry.item(preset.id, title: preset.name) }
+        PopUpMenu(entries: [.header("On this Mac")] + AIPreset.choices(for: purposes, in: .thisMac).map(item)
+                      + [.header("Cloud")] + AIPreset.choices(for: purposes, in: .cloud).map(item)
+                      + [.separator] + AIPreset.choices(for: purposes, in: .anywhere).map(item),
+                  selection: selection.id) { id in
+            AIPreset.named(id).map(choose)
+        }
+    }
+}
+
+@MainActor
+private final class ModelCatalog: ObservableObject {
+    enum State: Equatable {
+        case loading, listed([String]), needsKey, unlisted
+    }
+
+    @Published private(set) var state = State.loading
+    @Published private(set) var reloads = 0
+    private var loadedFrom = ""
+
+    var hint: String? {
+        switch state {
+        case .loading: return "Loading the server's models…"
+        case .listed: return nil
+        case .needsKey: return "Enter the API key to load the model list."
+        case .unlisted: return "This server doesn't list its models. Type the name."
+        }
+    }
+
+    func reload() { reloads += 1 }
+
+    func load(_ settings: some AIServiceSettings, for purpose: AIPurpose) async -> Bool {
+        if loadedFrom != settings.server { state = .loading }
+        do { try await Task.sleep(for: .milliseconds(500)) } catch { return false }
+        let answer = await ModelList.fetch(settings, for: purpose)
+        guard !Task.isCancelled else { return false }
+        loadedFrom = settings.server
+        switch answer.status {
+        case 200 where !answer.names.isEmpty: state = .listed(ModelList.offered(answer.names, for: purpose))
+        case 401, 403: state = .needsKey
+        default: state = .unlisted
+        }
+        return true
+    }
+}
+
+private struct ModelChooser: View {
+    let purpose: AIPurpose
+    let preset: AIPreset
+    @ObservedObject var catalog: ModelCatalog
+    @Binding var model: String
+
+    var body: some View {
+        if catalog.state == .unlisted {
+            TextField(purpose == .transcription ? "ASR model" : "LLM model", text: $model,
+                      prompt: Text(preset.suggestedModel(for: purpose) ?? "Model name"))
+                .labelsHidden()
+                .multilineTextAlignment(.leading)
+        } else {
+            PopUpMenu(entries: entries, selection: model) { model = $0 }
+                .dropdownBox()
+        }
+    }
+
+    private var entries: [PopUpMenu.Entry] {
+        let offered: [String]
+        switch catalog.state {
+        case .listed(let names): offered = names
+        default: offered = [model, preset.suggestedModel(for: purpose) ?? ""].filter { !$0.isEmpty }.uniqued()
+        }
+        var entries = offered.map { PopUpMenu.Entry.item($0, title: $0) }
+        if model.isEmpty {
+            entries.insert(.item("", title: "Choose a model"), at: 0)
+        } else if !offered.contains(model) {
+            entries.insert(.item(model, title: "\(model) (not offered)"), at: 0)
+        }
+        return entries
+    }
+}
+
+private extension View {
+    func dropdownBox() -> some View {
+        padding(.horizontal, 3).card(radius: 6, border: Palette.tertiary.opacity(0.35))
+    }
+}
+
+private extension Array where Element == String {
+    func uniqued() -> [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0).inserted }
+    }
+}
+
+struct PopUpMenu: NSViewRepresentable {
+    enum Entry: Equatable {
+        case header(String)
+        case separator
+        case item(String, title: String)
+    }
+
+    let entries: [Entry]
+    let selection: String
+    let choose: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.picked(_:))
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.choose = choose
+        button.controlSize = Self.appKitSize(context.environment.controlSize)
+        button.font = .systemFont(ofSize: NSFont.systemFontSize(for: button.controlSize))
+        if context.coordinator.entries != entries {
+            context.coordinator.entries = entries
+            let menu = NSMenu()
+            for entry in entries {
+                switch entry {
+                case .header(let title): menu.addItem(.sectionHeader(title: title))
+                case .separator: menu.addItem(.separator())
+                case .item(let id, let title):
+                    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                    item.representedObject = id
+                    menu.addItem(item)
+                }
+            }
+            button.menu = menu
+        }
+        if let item = button.itemArray.first(where: { $0.representedObject as? String == selection }) {
+            button.select(item)
+        }
+    }
+
+    private static func appKitSize(_ size: ControlSize) -> NSControl.ControlSize {
+        switch size {
+        case .mini: return .mini
+        case .small: return .small
+        case .large, .extraLarge: return .large
+        default: return .regular
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var choose: (String) -> Void = { _ in }
+        var entries: [Entry] = []
+
+        @objc func picked(_ sender: NSPopUpButton) {
+            if let id = sender.selectedItem?.representedObject as? String { choose(id) }
+        }
     }
 }
 
@@ -594,6 +827,8 @@ private struct AdvancedSettings: View {
                         if let pending = updates.pending {
                             Button(pending.isReady ? "Restart to Update" : "Update to \(pending.version)…",
                                    action: updates.installNow)
+                                .disabled(updates.restartWaitsForRecording)
+                                .help(updates.restartWaitsForRecording ? "Updates wait until the recording ends" : "")
                         } else {
                             Button("Check Now", action: updates.checkNow).disabled(!updates.canCheck)
                         }

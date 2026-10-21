@@ -6,10 +6,13 @@ in `Resources/Licenses` and ship inside the app bundle. Their headers are the pu
 of the `COpusShim` target, which also wraps the variadic `opus_*_ctl` calls for Swift.
 
 Built from the upstream release tarballs with CMake, `-O3`, deployment target macOS 15,
-one build per architecture, merged with `lipo -create`:
+one build per architecture, merged with `lipo -create`. `-ffile-prefix-map` keeps the build
+machine's paths out of the assertion strings:
 
     cmake -S opus-1.6.1 -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=<arch> \
       -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DOPUS_BUILD_SHARED_LIBRARY=OFF \
-      -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF
+      -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF \
+      -DCMAKE_C_FLAGS="-ffile-prefix-map=$PWD/opus-1.6.1=opus-1.6.1"
     cmake -S libogg-1.3.6 -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=<arch> \
-      -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DBUILD_SHARED_LIBS=OFF -DINSTALL_DOCS=OFF
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DBUILD_SHARED_LIBS=OFF -DINSTALL_DOCS=OFF \
+      -DCMAKE_C_FLAGS="-ffile-prefix-map=$PWD/libogg-1.3.6=libogg-1.3.6"

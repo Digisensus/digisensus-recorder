@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = model
         banner.show(.init(symbol: "record.circle.fill", tint: .red, title: "Recording started",
                           detail: model.recordingName ?? "",
-                          button: "Stop", action: { model.toggle() }), for: 6)
+                          button: "Stop", action: { if model.isRecording { model.toggle() } }), for: 6)
     }
 
     private func showSavedBanner(_ file: URL) {
@@ -201,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showOnboarding() {
         let flow = OnboardingFlow()
+        if UserDefaults.standard.bool(forKey: OnboardingFlow.doneKey) { flow.keepCurrentSettings(of: model) }
         flow.finish = { [weak self] in self?.finishOnboarding() }
         let window = NSWindow(contentViewController: NSHostingController(
             rootView: OnboardingView(flow: flow, model: model, permissions: permissions)))
@@ -235,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var showsInDock: Bool { UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true }
 
     private var hasVisibleWindow: Bool {
-        [mainWindow, onboardingWindow, messagesWindow].contains { $0?.isVisible == true }
+        [mainWindow, onboardingWindow, messagesWindow].contains { $0?.isVisible == true || $0?.isMiniaturized == true }
     }
 
     private func applyDockPreference() {
@@ -247,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window else { return }
         NSApp.setActivationPolicy(.regular)
         if window.isMiniaturized { window.deminiaturize(nil) }
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -257,15 +258,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             popover.performClose(nil)
             let menu = NSMenu()
-            menu.addItem(withTitle: "Open Digisensus", action: #selector(openFromMenu), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Open Digisensus Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
             if !messages.messages.isEmpty {
                 let unread = messages.unreadCount
                 menu.addItem(withTitle: unread > 0 ? "Messages (\(unread) new)" : "Messages",
                              action: #selector(messagesFromMenu), keyEquivalent: "").target = self
             }
             if updates.isEnabled || AppDistribution.current == .appStore {
-                let title = updates.pending?.isReady == true ? "Restart to Update" : "Check for Updates…"
-                menu.addItem(withTitle: title, action: #selector(updateFromMenu), keyEquivalent: "").target = self
+                let title = updates.pending?.isReady == true ? "Restart to Update"
+                    : AppDistribution.current == .appStore ? "Updates in the App Store…" : "Check for Updates…"
+                let item = menu.addItem(withTitle: title, action: #selector(updateFromMenu), keyEquivalent: "")
+                item.target = self
+                if updates.restartWaitsForRecording {
+                    item.action = nil
+                    item.toolTip = "Updates wait until the recording ends"
+                }
             }
             menu.addItem(.separator())
             menu.addItem(withTitle: "Quit Digisensus Recorder", action: #selector(NSApplication.terminate(_:)),
@@ -299,6 +306,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
         let color: NSColor? = recording ? .systemRed : armed ? .systemBlue : nil
         button.image = color == nil ? MenuIcon.plain : MenuIcon.withDotGap
+        let state = recording ? "Recording" : armed ? "Auto-record on" : nil
+        button.setAccessibilityLabel(["Digisensus Recorder", state].compactMap { $0 }.joined(separator: ", "))
+        button.toolTip = button.accessibilityLabel()
 
         dot.removeAllAnimations()
         dot.isHidden = color == nil
@@ -378,6 +388,11 @@ extension AppDelegate {
             try? await Task.sleep(for: .seconds(0.8))
             write(onboardingWindow, "onboarding-\(step + 1)")
         }
+        onboardingFlow?.step = 3
+        onboardingFlow?.aiChoice = .own
+        AIPreset.named("anthropic").map { onboardingFlow?.choose($0, for: .summary) }
+        try? await Task.sleep(for: .seconds(0.8))
+        write(onboardingWindow, "onboarding-4-own")
         onboardingWindow?.close()
 
         openMainWindow()

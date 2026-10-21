@@ -46,9 +46,6 @@ final class RecorderModel: ObservableObject {
         didSet {
             guard autoRecord != oldValue else { return }
             UserDefaults.standard.set(autoRecord, forKey: "autoRecord")
-            if autoRecord {
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
-            }
             pollCalls()
         }
     }
@@ -87,6 +84,8 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var lastFile: URL?
     @Published private(set) var lastSaved: URL?
     @Published private(set) var lastDiscarded: String?
+    private static let systemAudioDenied = "Allow Digisensus Recorder under System Settings › Privacy & Security › "
+        + "Screen & System Audio Recording › System Audio Recording Only, then record again."
     private static let minimumSpeech = (me: 1.0, them: 2.0)
     var recordingName: String? { (pendingEncode?.final ?? lastFile)?.lastPathComponent }
     @Published var message: String?
@@ -114,6 +113,7 @@ final class RecorderModel: ObservableObject {
         .appendingPathComponent("Digisensus Recorder", isDirectory: true)
 
     init() {
+        LegacyData.copyFromDirectDownloadIfNeeded()
         let defaults = UserDefaults.standard
         if let saved = defaults.string(forKey: "source") {
             switch saved {
@@ -139,11 +139,16 @@ final class RecorderModel: ObservableObject {
         }
         refreshDevices()
         _ = library
+        if AppDatabase.shared.isTemporary {
+            message = "The library couldn't be opened, so titles, transcripts and summaries made now won't be kept. "
+                + "Recordings are still saved. Quit and reopen Digisensus Recorder to try again."
+        }
         recoverCaptures()
 
         callTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollCalls() }
         }
+        callTimer?.tolerance = 0.2
     }
 
     private func levels(app: Float, mic: Float) {
@@ -160,25 +165,34 @@ final class RecorderModel: ObservableObject {
         defer { isBusy = false }
         audioTest = .running
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
-            audioTest = .done(me: false, them: false)
+            audioTest = .done(me: false, them: await SystemAudioAccess.check() == .granted)
             return
         }
+        if SystemAudioAccess.lastKnown != .granted { _ = await SystemAudioAccess.check() }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("digisensus-test-\(UUID().uuidString)\(RecordingFile.captureSuffix)")
         defer { try? FileManager.default.removeItem(at: url) }
         micHistory = []
         appHistory = []
         testPeaks = (0, 0)
         defer { testPeaks = nil }
-        do {
-            try await engine.start(source: .systemAudio, microphoneID: micID.isEmpty ? nil : micID, url: url,
-                                   autoBalance: false, removeCrosstalk: false)
-        } catch {
-            Log.write("audio test failed: \(error)")
-            audioTest = CGPreflightScreenCaptureAccess()
-                ? .failed(error.localizedDescription) : .done(me: false, them: false)
+        let chime = TonePlayer()
+        do { try chime?.start() } catch {
+            Log.write("audio test: no output (\(error))")
+            audioTest = .failed("The speakers couldn't be started.")
             return
         }
-        try? await Task.sleep(for: .seconds(5))
+        defer { chime?.stop() }
+        do {
+            try await engine.startTest(microphoneID: micID.isEmpty ? nil : micID, url: url)
+        } catch {
+            Log.write("audio test failed: \(error)")
+            audioTest = SystemAudioAccess.lastKnown == .denied
+                ? .done(me: false, them: false) : .failed(error.localizedDescription)
+            return
+        }
+        try? await Task.sleep(for: .seconds(0.5))
+        chime?.play(TonePlayer.chime)
+        try? await Task.sleep(for: .seconds(4.5))
         await engine.stop()
         appLevel = 0
         micLevel = 0
@@ -247,9 +261,9 @@ final class RecorderModel: ObservableObject {
             if !isRecording { autoStatus = autoSuppressed ? "\(call.label) call – not recording" : "\(call.label) call detected…" }
         } else {
             callStreak = 0
-            autoSuppressed = false
-            if isRecording, autoStarted, !isBusy,
-               Date().timeIntervalSince(lastCallSeen ?? .distantPast) > Self.callEndGrace {
+            let callEnded = Date().timeIntervalSince(lastCallSeen ?? .distantPast) > Self.callEndGrace
+            if callEnded { autoSuppressed = false }
+            if isRecording, autoStarted, !isBusy, callEnded {
                 Task { await stop() }
             }
             if !isRecording { autoStatus = "Waiting for a call…" }
@@ -265,15 +279,14 @@ final class RecorderModel: ObservableObject {
     }
 
     func startForAgent(client: String, source: AudioSource?) async -> Bool {
-        if let source { self.source = source }
-        await start()
+        await start(using: source)
         if isRecording {
             notify("Recording started by an AI agent", "“\(client)” started this recording.")
         }
         return isRecording
     }
 
-    func start(detected: DetectedCall? = nil) async {
+    func start(detected: DetectedCall? = nil, using override: AudioSource? = nil) async {
         guard !isRecording, !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
@@ -282,13 +295,16 @@ final class RecorderModel: ObservableObject {
             source = detected.source
         }
         saveSelections()
+        let source = override ?? source
 
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
             message = "Microphone access denied. Enable Digisensus Recorder in System Settings › Privacy & Security › Microphone."
             return
         }
-        if !CGPreflightScreenCaptureAccess() {
-            Permissions.requestSystemAudio()
+        if await SystemAudioAccess.check() == .denied {
+            if detected != nil { autoSuppressed = true }
+            message = Self.systemAudioDenied
+            return
         }
 
         do {
@@ -296,8 +312,7 @@ final class RecorderModel: ObservableObject {
             let stamp = Date().formatted(.verbatim(
                 "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)_\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased))-\(minute: .twoDigits)-\(second: .twoDigits)",
                 timeZone: .current, calendar: .current))
-            let name = "rec-\(stamp)" + (detected.map { "-\($0.label)" } ?? "")
-            let final = folder.appendingPathComponent("\(name).\(RecordingFile.fileExtension)")
+            let final = Self.unusedRecordingURL(in: folder, named: "rec-\(stamp)" + (detected.map { "-\($0.label)" } ?? ""))
             let url = RecordingFile.captureURL(for: final)
             try await engine.start(source: source, microphoneID: micID.isEmpty ? nil : micID,
                                    url: url, autoBalance: autoBalance,
@@ -313,7 +328,6 @@ final class RecorderModel: ObservableObject {
             autoStarted = detected != nil
             if let detected {
                 autoStatus = "Auto-recording \(detected.label) call"
-                notify("Recording \(detected.label) call", "Digisensus Recorder started recording automatically.")
             }
             startedAt = Date()
             elapsed = 0
@@ -326,11 +340,7 @@ final class RecorderModel: ObservableObject {
         } catch {
             Log.write("start failed: \(error)")
             if detected != nil { autoSuppressed = true }
-            if CGPreflightScreenCaptureAccess() {
-                message = error.localizedDescription
-            } else {
-                message = "Allow Digisensus Recorder in System Settings › Privacy & Security › Screen & System Audio Recording, then relaunch it."
-            }
+            message = error.localizedDescription
         }
     }
 
@@ -358,7 +368,6 @@ final class RecorderModel: ObservableObject {
         isRecording = false
         appLevel = 0
         micLevel = 0
-        let wasAuto = autoStarted
         autoStarted = false
 
         if unanswered {
@@ -373,29 +382,24 @@ final class RecorderModel: ObservableObject {
         }
 
         let notes = liveNotes.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let pending = pendingEncode { RecordingFile.keepNotes(notes, for: pending.final) }
-        defer {
-            if let lastFile {
-                library.register(file: lastFile, startedAt: began, duration: duration, call: currentCall,
-                                 notes: notes.isEmpty ? nil : notes)
-                try? FileManager.default.removeItem(at: RecordingFile.notesURL(for: lastFile))
-                lastSaved = lastFile
-                if wasAuto { notify("Call recording saved", lastFile.lastPathComponent) }
-            }
-            liveNotes = ""
-        }
-
-        if let pending = pendingEncode {
-            pendingEncode = nil
-            message = "Compressing…"
-            let encoded = await Task.detached { Self.finishEncode(pending) || Self.finishEncode(pending) }.value
-            if encoded {
-                lastFile = pending.final
-                message = nil
-            } else {
-                lastFile = nil
-                message = "Couldn't compress this recording. It's kept and will be saved when Digisensus Recorder next starts."
-            }
+        liveNotes = ""
+        guard let pending = pendingEncode else { return }
+        pendingEncode = nil
+        RecordingFile.keepNotes(notes, for: pending.final)
+        let id = library.registerProcessing(file: pending.final, startedAt: began, duration: duration,
+                                            call: currentCall, notes: notes.isEmpty ? nil : notes)
+        message = "Compressing…"
+        let encoded = await Task.detached { Self.finishEncode(pending) || Self.finishEncode(pending) }.value
+        if encoded {
+            try? FileManager.default.removeItem(at: RecordingFile.notesURL(for: pending.final))
+            if let id { library.finishProcessing(id, file: pending.final, duration: duration) }
+            lastFile = pending.final
+            lastSaved = pending.final
+            message = nil
+        } else {
+            if let id { library.abandonProcessing(id) }
+            lastFile = nil
+            message = "Couldn't compress this recording. It's kept and will be saved when Digisensus Recorder next starts."
         }
     }
 
@@ -405,17 +409,9 @@ final class RecorderModel: ObservableObject {
         Task.detached(priority: .utility) {
             let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
             var recovered: [URL] = []
-            for capture in files where capture.lastPathComponent.hasSuffix(RecordingFile.captureSuffix) {
+            for capture in files where RecordingFile.isCapture(capture) {
                 let recording = RecordingFile.recordingURL(forCapture: capture)
-                let partial = recording.appendingPathExtension("part")
-                var saved = RecordingFile.encodeOpus(from: capture, to: partial)
-                if saved {
-                    let files = FileManager.default
-                    saved = files.fileExists(atPath: recording.path)
-                        ? (try? files.replaceItemAt(recording, withItemAt: partial)) != nil
-                        : (try? files.moveItem(at: partial, to: recording)) != nil
-                }
-                try? FileManager.default.removeItem(at: partial)
+                let saved = RecordingFile.encodeOpus(from: capture, to: recording)
                 if saved {
                     try? FileManager.default.removeItem(at: capture)
                     recovered.append(recording)
@@ -425,6 +421,19 @@ final class RecorderModel: ObservableObject {
             let saved = recovered
             if !saved.isEmpty { await MainActor.run { library.reindex(saved) } }
         }
+    }
+
+    private static func unusedRecordingURL(in folder: URL, named name: String) -> URL {
+        let files = FileManager.default
+        func candidate(_ attempt: Int) -> URL {
+            folder.appendingPathComponent((attempt == 1 ? name : "\(name)-\(attempt)") + ".\(RecordingFile.fileExtension)")
+        }
+        var attempt = 1
+        while files.fileExists(atPath: candidate(attempt).path)
+                || files.fileExists(atPath: RecordingFile.captureURL(for: candidate(attempt)).path) {
+            attempt += 1
+        }
+        return candidate(attempt)
     }
 
     private nonisolated static func finishEncode(_ pending: PendingEncode) -> Bool {
