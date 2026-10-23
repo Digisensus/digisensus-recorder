@@ -28,6 +28,24 @@ Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and
   </tr>
 </table>
 
+## See it in action
+
+**Set up in about a minute:** permissions, a quick audio test, and optional transcripts and summaries.
+
+https://github.com/user-attachments/assets/09237593-5e3f-405d-b677-9eb6db4e3bd5
+
+**Google Meet call:** recording starts by itself, notes during the call, then the transcript and summary.
+
+https://github.com/user-attachments/assets/2840fe3f-1180-4576-b7a5-54db56f29763
+
+**FaceTime call:**
+
+https://github.com/user-attachments/assets/6628e966-04f4-4b83-864c-18f68d35b5ec
+
+**iPhone call via Continuity:**
+
+https://github.com/user-attachments/assets/66f937bb-d9b9-419b-8b79-15def55f4e2a
+
 ## What it does
 
 - **Records any call.** Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp, Viber, Telegram, Slack and any other app, plus iPhone phone calls answered on your Mac through Continuity. Your microphone and the other side are kept as separate channels, so transcripts know who said what.
