@@ -23,10 +23,10 @@ enum AppVersion {
 
     static let updateRequired = Notification.Name("DigisensusRecorderUpdateRequired")
 
-    static func tag(_ request: inout URLRequest) {
+    static func tag(_ request: inout URLRequest, withDevice: Bool = true) {
         request.setValue(build, forHTTPHeaderField: "X-App-Build")
         request.setValue(AppDistribution.current.rawValue, forHTTPHeaderField: "X-App-Distribution")
-        if let deviceID { request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID") }
+        if withDevice, let deviceID { request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID") }
     }
 
     static let deviceID: String? = {

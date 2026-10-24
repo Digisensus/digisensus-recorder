@@ -50,6 +50,7 @@ final class MessageCenter: ObservableObject {
     private var etag: String?
     private var timer: Timer?
     private var polling = false
+    private var launchReported = false
     private let defaults = UserDefaults.standard
 
     init() {
@@ -80,11 +81,11 @@ final class MessageCenter: ObservableObject {
         var request = URLRequest(url: DigisensusAccount.server.appendingPathComponent("v1/messages"), timeoutInterval: 20)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
-        request.setValue(AppVersion.build, forHTTPHeaderField: "X-App-Build")
-        request.setValue(AppDistribution.current.rawValue, forHTTPHeaderField: "X-App-Distribution")
+        UsageStatistics.tag(&request, launch: !launchReported)
         do {
             let (data, response) = try await URLSession.app.data(for: request)
             let http = response as? HTTPURLResponse
+            if http != nil { launchReported = true }
             switch http?.statusCode {
             case 200:
                 let list = try Self.decoder.decode([String: [BroadcastMessage]].self, from: data)["messages"] ?? []

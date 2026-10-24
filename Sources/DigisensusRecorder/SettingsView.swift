@@ -744,6 +744,7 @@ private struct AdvancedSettings: View {
     @ObservedObject var updates: UpdateController
     @StateObject private var connection = AgentConnection()
     @AppStorage(OnboardingFlow.onceMoreKey) private var introOnNextStart = false
+    @AppStorage(UsageStatistics.sharingKey) private var sharesUsageStatistics = true
 
     var body: some View {
         let command = connection.command(helper: AgentAccess.helperURL.path)
@@ -850,6 +851,13 @@ private struct AdvancedSettings: View {
                 } else {
                     Text("This is a local build, which doesn't update itself. Release builds check for updates at launch and every 24 hours.")
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Privacy") {
+                Toggle(isOn: $sharesUsageStatistics) {
+                    Text("Share usage statistics")
+                    Text("When the app checks for messages, it also sends an identifier derived from this Mac, whether the app just started, the chip type, your language and which AI service you chose. It helps us count how many people use each version. Never your recordings, transcripts, notes or contacts.")
                 }
             }
 

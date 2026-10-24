@@ -99,6 +99,9 @@ Digisensus Recorder is free and open source under the GPL. Like them, it gives y
 **Where are my recordings stored?**
 On your Mac, as Ogg Opus audio files in `~/Music/Digisensus Recorder`. Nothing is uploaded unless you ask for a transcript. Transcription runs on the Digisensus service or on an OpenAI-compatible server you choose, which can be one running on your own Mac.
 
+**What does the app send to Digisensus when I don't use the Digisensus service?**
+Every 15 minutes while it runs, the app checks for messages from Digisensus, sending its version and whether it came from the App Store. Unless you turn off Settings › Advanced › Share usage statistics, the check also carries an identifier derived from your Mac (a one-way hash, not the serial number), whether the app just started, the chip type, your preferred language and which AI service you chose (Digisensus, your own or none, and for your own the kind, such as Ollama or OpenAI, never its address or key). That is how we count how many people use each version. Recordings, transcripts and notes are never part of it.
+
 **I used the direct download. Can I switch to the Mac App Store version?**
 Yes. On its first launch the App Store version copies your library (transcripts, summaries, titles, notes, tags) and settings from the direct download, and leaves the original untouched. Sign in again, or re-enter your own API keys, in Settings › Transcription & AI: macOS keeps passwords and keys private to the copy that saved them. Recordings are shared, since both use `~/Music/Digisensus Recorder`. You'll be asked for the permissions again, because macOS treats the App Store copy as a new app.
 
