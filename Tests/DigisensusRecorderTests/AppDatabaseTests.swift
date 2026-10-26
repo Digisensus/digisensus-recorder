@@ -73,6 +73,39 @@ struct AppDatabaseTests {
         #expect(recording.tags == ["Work"], "tags are the user's; they survive a new transcript")
     }
 
+    @Test func aNewSummaryReplacesSuggestionsButKeepsWhatWasAdded() throws {
+        let (database, id) = try database()
+        func agreement(_ title: String, _ day: String) -> Agreement {
+            Agreement(recordingId: 0, title: title, kind: .meeting, day: day)
+        }
+        try database.saveSummary(CallSummary(headline: "One", summary: "Two",
+                                             agreements: [agreement("Demo", "2026-10-27"), agreement("Invoice", "2026-10-30")]),
+                                 model: "m", recordingID: id)
+        let first = try database.agreements(recordingID: id)
+        #expect(first.map(\.title) == ["Demo", "Invoice"])
+        #expect(first.allSatisfy { $0.recordingId == id && $0.status == .suggested })
+
+        var demo = first[0]
+        demo.time = "10:00"
+        demo.status = .added
+        try database.saveAgreement(demo)
+        var invoice = first[1]
+        invoice.status = .dismissed
+        try database.saveAgreement(invoice)
+
+        try database.saveSummary(CallSummary(headline: "One", summary: "Two",
+                                             agreements: [agreement("demo", "2026-10-27"), agreement("Contract", "2026-11-03")]),
+                                 model: "m", recordingID: id)
+        let second = try database.agreements(recordingID: id)
+        #expect(second.map(\.title) == ["Demo", "Contract"], "the added one stays once; the dismissed one goes")
+        #expect(second[0].status == .added && second[0].time == "10:00")
+
+        try database.saveTranscript(recordingID: id, segments: [], language: nil, model: nil)
+        #expect(try database.agreements(recordingID: id).map(\.title) == ["Demo"])
+        try database.deleteRecording(id: id)
+        #expect(try database.agreements(recordingID: id).isEmpty)
+    }
+
     @Test func transcriptionJobsSurviveARelaunch() throws {
         let database = try AppDatabase(DatabaseQueue())
         let saved = try database.saveRecording(Recording(

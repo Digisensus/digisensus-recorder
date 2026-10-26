@@ -6,6 +6,7 @@ final class RecordingDraft: ObservableObject {
     @Published var title: String
     @Published var notes: String
     @Published var segments: [TranscriptSegment] = []
+    @Published var agreements: [Agreement] = []
     @Published var addingTag = false
     @Published var newTag = ""
     private var pendingSave: Task<Void, Never>?
@@ -81,6 +82,7 @@ struct CallDetail: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             draft.segments = library.segments(of: recording)
+            loadAgreements()
             if !isProcessing { player.load(library.url(for: recording)) }
         }
         .onChange(of: isProcessing) { _, processing in
@@ -92,7 +94,9 @@ struct CallDetail: View {
         }
         .onChange(of: library.transcriptRevision) {
             draft.segments = library.segments(of: recording)
+            loadAgreements()
         }
+        .onChange(of: library.agreementRevision) { loadAgreements() }
         .onChange(of: recording.heading) { _, heading in
             if draft.title == draft.shownTitle {
                 draft.title = heading
@@ -101,6 +105,10 @@ struct CallDetail: View {
         }
         .onChange(of: draft.notes) { draft.saveSoon(save) }
         .onChange(of: draft.title) { draft.saveSoon(save) }
+    }
+
+    private func loadAgreements() {
+        draft.agreements = library.agreements(of: recording)
     }
 
     private var header: some View {
@@ -178,9 +186,17 @@ struct CallDetail: View {
         case .summary:
             ScrollView {
                 if case .summarized = state, let summary = recording.summaryLong {
-                    SummaryCard(summary: summary, points: recording.summaryPoints ?? [],
-                                error: error(for: \.summaryErrors),
-                                redo: library.aiService == .off ? nil : { library.summarize(recording) })
+                    VStack(spacing: 16) {
+                        SummaryCard(summary: summary, points: recording.summaryPoints ?? [],
+                                    error: error(for: \.summaryErrors),
+                                    redo: library.aiService == .off ? nil : { library.summarize(recording) })
+                        if !draft.agreements.isEmpty {
+                            AgreementsCard(library: library, recording: recording, agreements: draft.agreements) { time in
+                                player.seek(to: time)
+                                if !player.isPlaying { player.togglePlayback() }
+                            }
+                        }
+                    }
                 } else {
                     progressOrOffer(state)
                 }

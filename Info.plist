@@ -57,6 +57,8 @@
     <string>Digisensus Recorder records your microphone into the right channel of the recording.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Digisensus Recorder checks your browser's open tabs to name a browser call by its meeting app, like Zoom or Teams. Without this, the call is named after the browser.</string>
+    <key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+    <string>Digisensus Recorder adds the meetings and deadlines agreed in a call to your calendar, only when you choose Add. It never reads your calendar.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>Digisensus Recorder records the other side of your calls, from the calling app or system audio, into the left channel of the recording.</string>
 </dict>

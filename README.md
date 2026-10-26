@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/66f937bb-d9b9-419b-8b79-15def55f4e2a
 - **No meeting bot.** It records the audio on your Mac, so no notetaker joins the call, nobody sees an extra participant, and it works for any call, not just scheduled meetings.
 - **Starts and stops with your call.** Auto-record begins when a call starts and ends when you hang up, with a banner and a Stop button so you always know. Nothing is captured between calls.
 - **Private, on your Mac.** Audio only, never the screen. Recordings are Ogg Opus files in `~/Music/Digisensus Recorder`, and nothing is uploaded unless you choose to transcribe.
-- **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
+- **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you, and pick out the meetings and deadlines agreed in the call so you can add them to your calendar in one click. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
 - **Organised.** Browse by day in the calendar, filter by app or tag, and search every transcript. Each call has its own notes.
 - **Works with AI agents.** The bundled `recorder` command and its MCP server let Claude Code, Codex and other agents list, search, export and summarise recordings, and start or stop recording. Turn it on in Settings › Advanced. The command lives inside the app, at `Digisensus Recorder.app/Contents/MacOS/recorder`.
 
@@ -80,7 +80,9 @@ Digisensus Recorder records audio and nothing else. The walkthrough asks for the
 
 **Browser meeting names · optional.** A call in a desktop app is named after the app: Zoom, Teams, FaceTime. A call in a browser tab looks like "Chrome" to macOS, because other apps cannot see a browser's window titles. To name it "Meet" or "Zoom" instead, the app can ask the browser for the addresses of its open tabs, only while a call is detected in that browser, and match them against a short list of meeting services: Meet, Zoom, Teams, Whereby, Jitsi, Webex, Slack and Discord. Nothing else is read or stored. It works with Chrome, Edge, Brave, Arc and Safari, and macOS asks once per browser. Without it, browser calls are named after the browser.
 
-**Nothing else.** The app does not use Accessibility, Full Disk Access, Contacts or Calendars. Recordings are plain files in `~/Music/Digisensus Recorder`; the Mac App Store version is sandboxed and can reach that folder and nothing else of yours.
+**Calendar · optional, write-only.** Asked the first time you add a meeting or deadline from a call summary to the Calendar on your Mac. The app can only add events, to your default calendar, and cannot read anything already in it. Without it, Add opens the event in the Calendar app for you to import instead. Adding to Google Calendar, Outlook.com, Outlook (Microsoft 365) or another app needs no permission: the event opens in your browser or that app for you to save.
+
+**Nothing else.** The app does not use Accessibility, Full Disk Access or Contacts, and never reads your calendar. Recordings are plain files in `~/Music/Digisensus Recorder`; the Mac App Store version is sandboxed and can reach that folder and nothing else of yours.
 
 ## FAQ
 

@@ -148,6 +148,10 @@ final class LibraryStore: ObservableObject {
     private var transcriptionJobs: [Int64: Task<Void, Never>] = [:]
     @Published private(set) var transcriptionErrors: [Int64: String] = [:]
     @Published private(set) var transcriptRevision = 0
+    @Published private(set) var agreementRevision = 0
+    @Published private(set) var addingToCalendar: Set<Int64> = []
+    @Published private(set) var agreementErrors: [Int64: String] = [:]
+    private let calendarWriter = CalendarWriter()
     @Published private(set) var connectionStatus: String?
 
     @Published var summary = LibraryStore.loadSummarySettings() {
@@ -415,8 +419,9 @@ final class LibraryStore: ObservableObject {
             let model = settings.model
             do {
                 let started = Date()
-                let result = try await client.summarize(segments, knownTags: knownTags)
+                let result = try await client.summarize(segments, knownTags: knownTags, recordedAt: recording.startedAt)
                 try database.saveSummary(result, model: model, recordingID: id)
+                agreementRevision += 1
                 Log.write(String(format: "summarised %@ in %.1f s", recording.fileName, Date().timeIntervalSince(started)))
             } catch {
                 summaryErrors[id] = error.localizedDescription
@@ -660,6 +665,42 @@ final class LibraryStore: ObservableObject {
         return (try? database.segments(recordingID: id)) ?? []
     }
 
+    func agreements(of recording: Recording) -> [Agreement] {
+        guard let id = recording.id else { return [] }
+        return ((try? database.agreements(recordingID: id)) ?? []).filter { $0.status != .dismissed }
+    }
+
+    func addToCalendar(_ agreement: Agreement, from recording: Recording, destination: CalendarDestination) {
+        guard let id = agreement.id, !addingToCalendar.contains(id) else { return }
+        addingToCalendar.insert(id)
+        agreementErrors[id] = nil
+        Task {
+            do {
+                try await calendarWriter.add(agreement, from: recording, to: destination)
+                var added = agreement
+                added.status = .added
+                try database.saveAgreement(added)
+                Log.write("added an agreement of \(recording.fileName) to \(destination.rawValue)")
+            } catch {
+                agreementErrors[id] = error.localizedDescription
+                Log.write("could not add an agreement of \(recording.fileName) to \(destination.rawValue): \(Log.describe(error))")
+            }
+            addingToCalendar.remove(id)
+            agreementRevision += 1
+        }
+    }
+
+    func dismiss(_ agreement: Agreement) {
+        var dismissed = agreement
+        dismissed.status = .dismissed
+        do {
+            try database.saveAgreement(dismissed)
+        } catch {
+            Log.write("could not dismiss an agreement: \(error)")
+        }
+        agreementRevision += 1
+    }
+
     func searchTranscripts(_ query: String, limit: Int) -> [TranscriptSearchHit] {
         (try? database.searchTranscripts(query, limit: limit)) ?? []
     }
@@ -798,5 +839,11 @@ extension Recording {
     var durationText: String {
         guard let duration else { return "–" }
         return RecorderModel.clock(duration.rounded())
+    }
+}
+
+extension String {
+    var safeFileName: String {
+        String(components(separatedBy: CharacterSet(charactersIn: "/:\\")).joined(separator: "-").prefix(80))
     }
 }

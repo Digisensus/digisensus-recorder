@@ -17,6 +17,9 @@
     <!-- Digisensus transcription and summaries, or the user's own servers. -->
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- Adds the agreements of a call to Calendar when the user chooses to (write-only access). -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
     <!-- Recordings live in ~/Music/Digisensus Recorder. -->
     <key>com.apple.security.assets.music.read-write</key>
     <true/>

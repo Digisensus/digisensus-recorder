@@ -16,6 +16,7 @@ struct CallSummary: Equatable {
     var topic: String? = nil
     var points: [String] = []
     var tags: [String] = []
+    var agreements: [Agreement] = []
 }
 
 enum SummaryError: LocalizedError {
@@ -47,7 +48,7 @@ struct SummaryClient {
         recognition, so expect misheard or duplicated words and read through them.
 
         Answer with one JSON object and nothing else:
-        {"topic": "...", "headline": "...", "summary": "...", "points": ["..."], "tags": ["..."]}
+        {"topic": "...", "headline": "...", "summary": "...", "points": ["..."], "tags": ["..."], "agreements": []}
         - "topic": 2 to 5 words naming the subject, like a title, with no final period.
         - "headline": exactly one sentence, at most 20 words, saying what the call was about.
         - "summary": at most 3 sentences covering the topic and what was decided.
@@ -56,13 +57,26 @@ struct SummaryClient {
         Use an empty list when there are none.
         - "tags": 1 to 3 short tags (one or two words, capitalised) that sort the call, such as \
         Work, Clients, Hiring or Personal.
+        - "agreements": the meetings, calls, deadlines and reminders agreed in the call that fall on \
+        a definite day, as objects {"title": "...", "kind": "meeting", "owner": "you", "date": \
+        "YYYY-MM-DD", "weekday": "Wednesday", "time": "HH:MM", "duration_minutes": 30, "quote": "...", \
+        "at": "m:ss"}. \
+        "title" is a short calendar entry title naming who or what; "kind" is "meeting" for a call \
+        or meeting with someone, "deadline" for something due by that day, "reminder" for anything \
+        else to do then; "owner" is "you", "them" or "both", whoever has to act; "time" and \
+        "duration_minutes" are null unless the call names them; "weekday" is the English name of that \
+        day of the week, as the call names it; "quote" repeats the words that set it; "at" is the \
+        timestamp of those words. Work the date out from the call date and the list \
+        of days given below. Leave out anything without a definite day, like "sometime soon". Use \
+        an empty list when there are none.
         Write everything in the language the transcript is mostly in. Use only what the transcript \
         says; if there is too little to summarise, say so in one short sentence and leave the lists empty.
         """
 
     private static let transcriptCharacterLimit = 300_000
 
-    func summarize(_ segments: [TranscriptSegment], knownTags: [String] = []) async throws -> CallSummary {
+    func summarize(_ segments: [TranscriptSegment], knownTags: [String] = [],
+                   recordedAt: Date? = nil) async throws -> CallSummary {
         var transcript = segments.map { segment in
             let seconds = Int(segment.startTime)
             let speaker = segment.channel == .me ? "Me" : "Them"
@@ -76,13 +90,14 @@ struct SummaryClient {
         if !knownTags.isEmpty {
             instructions += "\nTags already in use (reuse one when it fits): \(knownTags.prefix(40).joined(separator: ", "))."
         }
+        if let recordedAt { instructions += "\n" + Self.callDateContext(recordedAt) }
         let attempts = api == .anthropic
             ? Self.messagesAttempts(model: settings.model, instructions: instructions, transcript: transcript)
             : chatCompletionAttempts(instructions: instructions, transcript: transcript)
         for (index, body) in attempts.enumerated() {
             let isLast = index == attempts.count - 1
             do {
-                return try Self.parse(try await complete(body))
+                return try Self.parse(try await complete(body), recordedAt: recordedAt)
             } catch SummaryError.server(let code, _) where (code == 400 || code == 422) && !isLast {
                 continue
             } catch SummaryError.cutOff where !isLast {
@@ -102,7 +117,7 @@ struct SummaryClient {
                 ["role": "user", "content": "Transcript:\n\(transcript)"],
             ],
         ]
-        let tuned = plain.merging(["temperature": 0.2, "max_tokens": 900]) { $1 }
+        let tuned = plain.merging(["temperature": 0.2, "max_tokens": 1500]) { $1 }
         var attempts = [tuned, plain]
         if sendsChatTemplateHints {
             attempts.insert(tuned.merging(["chat_template_kwargs": ["enable_thinking": false]]) { $1 }, at: 0)
@@ -168,7 +183,20 @@ struct SummaryClient {
         return blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
     }
 
-    static func parse(_ answer: String) throws -> CallSummary {
+    static func callDateContext(_ recordedAt: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "EEEE yyyy-MM-dd 'at' HH:mm"
+        let recorded = formatter.string(from: recordedAt)
+        formatter.dateFormat = "EEE yyyy-MM-dd"
+        let start = calendar.startOfDay(for: recordedAt)
+        let days = (1...21).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }.map(formatter.string)
+        return "The call was recorded on \(recorded). The days after it: \(days.joined(separator: ", "))."
+    }
+
+    static func parse(_ answer: String, recordedAt: Date? = nil) throws -> CallSummary {
         var text = answer
         while let open = text.range(of: "<think>"), let close = text.range(of: "</think>", range: open.upperBound..<text.endIndex) {
             text.removeSubrange(open.lowerBound..<close.upperBound)
@@ -185,7 +213,8 @@ struct SummaryClient {
                                    summary: summary.isEmpty ? headline : summary,
                                    topic: topic.isEmpty ? nil : topic,
                                    points: strings(object["points"]),
-                                   tags: uniqueTags(strings(object["tags"])))
+                                   tags: uniqueTags(strings(object["tags"])),
+                                   agreements: agreements(object["agreements"], recordedAt: recordedAt))
             }
         }
 
@@ -197,6 +226,42 @@ struct SummaryClient {
 
     private static func strings(_ value: Any?) -> [String] {
         ((value as? [Any]) ?? []).compactMap { $0 as? String }.map(clean).filter { !$0.isEmpty }
+    }
+
+    private static func agreements(_ value: Any?, recordedAt: Date?) -> [Agreement] {
+        let earliest = recordedAt.map(Calendar.current.startOfDay)
+        var seen = Set<String>()
+        let agreements = ((value as? [Any]) ?? []).compactMap { $0 as? [String: Any] }.compactMap { item -> Agreement? in
+            let title = String(clean(item["title"] as? String ?? "").prefix(120))
+            guard !title.isEmpty, let given = Agreement.date(day: clean(item["date"] as? String ?? "")) else { return nil }
+            let date = Agreement.moving(given, toWeekday: item["weekday"] as? String ?? "")
+            if let earliest, date < earliest { return nil }
+            let time = (item["time"] as? String).flatMap(Agreement.minutesIntoDay).map(Agreement.time(minutesIntoDay:))
+            let quote = String(clean(item["quote"] as? String ?? "").prefix(300))
+            let agreement = Agreement(
+                recordingId: 0, title: title,
+                kind: (item["kind"] as? String).flatMap { Agreement.Kind(rawValue: $0.lowercased()) } ?? (time == nil ? .deadline : .meeting),
+                owner: (item["owner"] as? String).flatMap { Agreement.Owner(rawValue: $0.lowercased()) },
+                day: Agreement.day(of: date), time: time,
+                durationMinutes: time == nil ? nil : durationMinutes(item["duration_minutes"]),
+                quote: quote.isEmpty ? nil : quote,
+                atSeconds: timestampSeconds(item["at"]))
+            return seen.insert(agreement.duplicateKey).inserted ? agreement : nil
+        }
+        return Array(agreements.prefix(8))
+    }
+
+    private static func durationMinutes(_ value: Any?) -> Int? {
+        let minutes = (value as? NSNumber)?.intValue ?? (value as? String).flatMap { Int(clean($0)) }
+        return minutes.map { min(max($0, 5), 480) }
+    }
+
+    private static func timestampSeconds(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return max(number.doubleValue, 0) }
+        guard let text = value as? String else { return nil }
+        let parts = clean(text).split(separator: ":").map { Int($0) }
+        guard (1...3).contains(parts.count), !parts.contains(nil) else { return nil }
+        return Double(parts.compactMap { $0 }.reduce(0) { $0 * 60 + $1 })
     }
 
     private static func uniqueTags(_ tags: [String]) -> [String] {

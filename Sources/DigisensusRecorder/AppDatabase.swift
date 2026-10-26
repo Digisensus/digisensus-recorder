@@ -170,6 +170,22 @@ final class AppDatabase {
         migrator.registerMigration("v5 drop embeddings") { db in
             try db.drop(table: "transcriptEmbedding")
         }
+
+        migrator.registerMigration("v6 agreements") { db in
+            try db.create(table: "agreement") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.belongsTo("recording", onDelete: .cascade).notNull()
+                t.column("title", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("owner", .text)
+                t.column("day", .text).notNull()
+                t.column("time", .text)
+                t.column("durationMinutes", .integer)
+                t.column("quote", .text)
+                t.column("atSeconds", .double)
+                t.column("status", .text).notNull().defaults(to: "suggested")
+            }
+        }
         return migrator
     }
 }
@@ -268,6 +284,7 @@ extension AppDatabase {
                 recording.summaryPoints = nil
                 try recording.update(db)
             }
+            try Self.unaddedAgreements(of: recordingID).deleteAll(db)
         }
     }
 
@@ -281,7 +298,28 @@ extension AppDatabase {
             recording.summaryPoints = summary.points.isEmpty ? nil : summary.points
             if recording.tags.isEmpty { recording.tags = Array(summary.tags.prefix(3)) }
             try recording.update(db)
+            try Self.unaddedAgreements(of: recordingID).deleteAll(db)
+            let added = Set(try Agreement.filter(Column("recordingId") == recordingID).fetchAll(db).map(\.duplicateKey))
+            for var agreement in summary.agreements where !added.contains(agreement.duplicateKey) {
+                agreement.recordingId = recordingID
+                try agreement.insert(db)
+            }
         }
+    }
+
+    private static func unaddedAgreements(of recordingID: Int64) -> QueryInterfaceRequest<Agreement> {
+        Agreement.filter(Column("recordingId") == recordingID && Column("status") != Agreement.Status.added.rawValue)
+    }
+
+    func agreements(recordingID: Int64) throws -> [Agreement] {
+        try writer.read { db in
+            try Agreement.filter(Column("recordingId") == recordingID)
+                .order(Column("day"), Column("time"), Column("id")).fetchAll(db)
+        }
+    }
+
+    func saveAgreement(_ agreement: Agreement) throws {
+        try writer.write { try agreement.update($0) }
     }
 
     func setTags(_ tags: [String], recordingID: Int64) throws {
