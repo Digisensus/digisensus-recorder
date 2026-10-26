@@ -118,7 +118,7 @@ let tools: [[String: Any]] = {
         tool("search_transcripts", "Full-text search across all transcripts (accent-insensitive, all words must match). Returns snippets with recording id, speaker and time.",
              ["query": ["type": "string"], "limit": ["type": "integer", "description": "Default 20."]], required: ["query"]),
         tool("export_transcript", "A recording's transcript as text.",
-             ["id": id, "format": ["type": "string", "enum": ["markdown", "srt", "json"], "description": "Default markdown."]], required: ["id"]),
+             ["id": id, "format": ["type": "string", "enum": ["markdown", "text", "srt", "csv", "json"], "description": "Default markdown."]], required: ["id"]),
         tool("transcribe", "Send a recording to the user's transcription server. Returns at once; poll get_recording for transcript_status. Needs the control permission.",
              ["id": id], required: ["id"]),
         tool("summarize", "Summarise a transcribed recording with the user's LLM server. Returns at once; poll get_recording for headline and summary. Needs the control permission.",
@@ -192,7 +192,7 @@ func usage() -> Never {
           list [--from DAY] [--to DAY] [--label NAME] [--transcribed] [--limit N]
           show ID                         metadata, summary and transcript
           search QUERY                    full-text search across transcripts
-          export ID [markdown|srt|json]
+          export ID [markdown|text|srt|csv|json]
           transcribe ID | summarize ID
           set ID [--title TEXT] [--notes TEXT]
           mcp                             run as an MCP server (for AI agents)

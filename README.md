@@ -53,7 +53,7 @@ https://github.com/user-attachments/assets/66f937bb-d9b9-419b-8b79-15def55f4e2a
 - **Starts and stops with your call.** Auto-record begins when a call starts and ends when you hang up, with a banner and a Stop button so you always know. Nothing is captured between calls.
 - **Private, on your Mac.** Audio only, never the screen. Recordings are Ogg Opus files in `~/Music/Digisensus Recorder`, and nothing is uploaded unless you choose to transcribe.
 - **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you, and pick out the meetings and deadlines agreed in the call so you can add them to your calendar in one click. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
-- **Organised.** Browse by day in the calendar, filter by app or tag, and search every transcript. Each call has its own notes.
+- **Organised.** Browse by day in the calendar, filter by app or tag, and search every transcript. Each call has its own notes. Copy a transcript, or export it as plain text, Markdown, subtitles (SRT), a spreadsheet (CSV) or JSON.
 - **Works with AI agents.** The bundled `recorder` command and its MCP server let Claude Code, Codex and other agents list, search, export and summarise recordings, and start or stop recording. Turn it on in Settings › Advanced. The command lives inside the app, at `Digisensus Recorder.app/Contents/MacOS/recorder`.
 
 ```sh

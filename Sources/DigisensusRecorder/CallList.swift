@@ -405,6 +405,15 @@ struct RecordingMenu: View {
         }
         .disabled(library.aiService == .off || recording.transcriptStatus != .done)
         Divider()
+        Button("Copy Transcript") { library.copyTranscript(of: recording) }
+            .disabled(recording.transcriptStatus != .done)
+        Menu("Export Transcript") {
+            ForEach(TranscriptFormat.allCases) { format in
+                Button(format.title + "…") { library.exportTranscript(of: recording, as: format) }
+            }
+        }
+        .disabled(recording.transcriptStatus != .done)
+        Divider()
         Button("Delete…", role: .destructive) {
             if let openApp {
                 openApp()

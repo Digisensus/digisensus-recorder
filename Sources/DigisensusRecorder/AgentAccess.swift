@@ -202,7 +202,7 @@ final class AgentAccess: ObservableObject {
             let recording = try find(arguments)
             let format = arguments["format"] as? String ?? "markdown"
             guard let text = export(recording, format: format) else {
-                throw CommandFailure(message: "Unknown format “\(format)”. Use markdown, srt or json.")
+                throw CommandFailure(message: "Unknown format “\(format)”. Use markdown, text, srt, csv or json.")
             }
             return ["format": format, "text": text]
 
@@ -300,37 +300,7 @@ final class AgentAccess: ObservableObject {
     }
 
     private func export(_ recording: Recording, format: String) -> String? {
-        let segments = library.segments(of: recording)
-        func clock(_ time: Double, srt: Bool = false) -> String {
-            let total = Int(time)
-            return srt
-                ? String(format: "%02d:%02d:%02d,%03d", total / 3600, total / 60 % 60, total % 60,
-                         Int((time - Double(total)) * 1000))
-                : RecorderModel.clock(time)
-        }
-        switch format {
-        case "markdown", "md":
-            var lines = ["# \(recording.heading)", "",
-                         "\(recording.startedAt.formatted(date: .long, time: .shortened)) · \(recording.durationText)", ""]
-            if !recording.tags.isEmpty { lines += ["Tags: " + recording.tags.joined(separator: ", "), ""] }
-            if let summary = recording.summaryLong { lines += ["## Summary", "", summary, ""] }
-            if let points = recording.summaryPoints, !points.isEmpty { lines += points.map { "- \($0)" } + [""] }
-            lines += ["## Transcript", ""]
-            lines += segments.map { "**\($0.channel == .me ? "Me" : "Them")** [\(clock($0.startTime))]: \($0.text)  " }
-            return lines.joined(separator: "\n")
-        case "srt":
-            return segments.enumerated().map { index, segment in
-                "\(index + 1)\n\(clock(segment.startTime, srt: true)) --> \(clock(max(segment.endTime, segment.startTime + 0.5), srt: true))\n"
-                    + "\(segment.channel == .me ? "Me" : "Them"): \(segment.text)\n"
-            }.joined(separator: "\n")
-        case "json":
-            let turns = segments.map { ["speaker": $0.channel == .me ? "Me" : "Them", "start": $0.startTime,
-                                        "end": $0.endTime, "text": $0.text] as [String: Any] }
-            return (try? JSONSerialization.data(withJSONObject: turns, options: [.prettyPrinted]))
-                .map { String(decoding: $0, as: UTF8.self) }
-        default:
-            return nil
-        }
+        TranscriptFormat(name: format).map(library.transcriptExport(of: recording).render)
     }
 
     private static let iso = ISO8601DateFormatter()

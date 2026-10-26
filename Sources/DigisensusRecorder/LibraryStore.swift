@@ -709,6 +709,34 @@ final class LibraryStore: ObservableObject {
         NSWorkspace.shared.open(url(for: recording))
     }
 
+    func transcriptExport(of recording: Recording) -> TranscriptExport {
+        TranscriptExport(recording: recording, segments: segments(of: recording), agreements: agreements(of: recording))
+    }
+
+    func copyTranscript(of recording: Recording) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(transcriptExport(of: recording).render(.text), forType: .string)
+    }
+
+    func exportTranscript(of recording: Recording, as format: TranscriptFormat) {
+        let text = transcriptExport(of: recording).render(format)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [format.contentType]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = recording.heading.safeFileName + "." + format.fileExtension
+        NSApp.activate()
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try text.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                Log.write("could not export the transcript of \(recording.fileName): \(error)")
+                NSAlert(error: error).runModal()
+            }
+        }
+    }
+
     func reveal(_ recording: Recording) {
         NSWorkspace.shared.activateFileViewerSelecting([url(for: recording)])
     }
