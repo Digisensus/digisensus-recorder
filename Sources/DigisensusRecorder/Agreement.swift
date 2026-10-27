@@ -3,7 +3,6 @@ import GRDB
 
 struct Agreement: Codable, Identifiable, Equatable, FetchableRecord, MutablePersistableRecord {
     enum Kind: String, Codable { case meeting, deadline, reminder }
-    enum Owner: String, Codable { case you, them, both }
     enum Status: String, Codable { case suggested, added, dismissed }
 
     static let defaultMinutes = 30
@@ -29,6 +28,14 @@ struct Agreement: Codable, Identifiable, Equatable, FetchableRecord, MutablePers
     var isAllDay: Bool { time == nil }
 
     var duplicateKey: String { day + "|" + title.lowercased() }
+
+    var jsonObject: [String: Any] {
+        let values: [String: Any?] = [
+            "title": title, "kind": kind.rawValue, "owner": owner?.rawValue, "date": day, "time": time,
+            "duration_minutes": durationMinutes, "quote": quote, "at": atSeconds, "added_to_calendar": status == .added,
+        ]
+        return values.compactMapValues { $0 }
+    }
 
     var start: Date? {
         guard let date = Self.date(day: day) else { return nil }

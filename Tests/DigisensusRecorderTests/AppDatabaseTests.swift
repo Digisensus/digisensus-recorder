@@ -106,6 +106,23 @@ struct AppDatabaseTests {
         #expect(try database.agreements(recordingID: id).isEmpty)
     }
 
+    @Test func tickedActionsStayTickedWhenTheSummaryIsRedone() throws {
+        let (database, id) = try database()
+        let first = CallSummary(headline: "One", summary: "Two", decisions: [Decision(text: "Go ahead")],
+                                actions: [ActionItem(text: "Send the offer"), ActionItem(text: "Book a room")])
+        try database.saveSummary(first, model: "m", recordingID: id)
+        try database.setAction(at: 0, done: true, recordingID: id)
+        try database.setAction(at: 7, done: true, recordingID: id)
+        #expect(try database.recording(id: id)?.summaryActions?.map(\.done) == [true, false])
+
+        let again = CallSummary(headline: "One", summary: "Two",
+                                actions: [ActionItem(text: "Book a room"), ActionItem(text: "send the offer")])
+        try database.saveSummary(again, model: "m", recordingID: id)
+        let recording = try #require(try database.recording(id: id))
+        #expect(recording.summaryActions?.map(\.done) == [false, true])
+        #expect(recording.summaryDecisions == nil)
+    }
+
     @Test func transcriptionJobsSurviveARelaunch() throws {
         let database = try AppDatabase(DatabaseQueue())
         let saved = try database.saveRecording(Recording(

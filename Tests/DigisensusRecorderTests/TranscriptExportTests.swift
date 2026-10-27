@@ -6,7 +6,10 @@ struct TranscriptExportTests {
     private let export = TranscriptExport(
         recording: Recording(fileName: "rec-2026-10-25_09-21-41-Meet.ogg", startedAt: Date(timeIntervalSince1970: 1_792_920_000),
                              duration: 75, sourceLabel: "Meet", autoStarted: true, format: "ogg", sizeBytes: 1,
-                             title: "Planning", transcriptStatus: .done, fileMissing: false, summaryLong: "Meeting next week."),
+                             title: "Planning", transcriptStatus: .done, fileMissing: false, summaryLong: "Meeting next week.",
+                             summaryDecisions: [Decision(text: "Meet on Google Meet", comment: "Both prefer video.",
+                                                                proposedBy: .you, agreedBy: .both)],
+                             summaryActions: [ActionItem(text: "Send the link", owner: .you, due: "by Tuesday", done: true)]),
         segments: [
             TranscriptSegment(recordingId: 1, channel: .them, startTime: 1.25, endTime: 4, text: "Labas, kada susitinkam?"),
             TranscriptSegment(recordingId: 1, channel: .me, startTime: 65, endTime: 70.5, text: #"Trečiadienį 17:30, "Google Meet""#),
@@ -39,8 +42,11 @@ struct TranscriptExportTests {
         #expect(export.render(.srt).hasPrefix("1\n00:00:01,250 --> 00:00:04,000\nThem: Labas, kada susitinkam?\n"))
     }
 
-    @Test func markdownListsWhatWasAgreed() {
-        #expect(export.render(.markdown).contains("## Agreed\n\n- 2026-11-04 17:30: Susitikimas\n"))
+    @Test func markdownListsDecisionsActionsAndWhatWasAgreed() {
+        let markdown = export.render(.markdown)
+        #expect(markdown.contains("## Decisions\n\n- Meet on Google Meet (Both prefer video.), suggested by You, agreed by Both\n"))
+        #expect(markdown.contains("## Action items\n\n- [x] Send the link (You, by Tuesday)\n"))
+        #expect(markdown.contains("## Agreed in this call\n\n- 2026-11-04 17:30: Susitikimas\n"))
     }
 
     @Test func formatNamesAcceptTheUsualSpellings() {

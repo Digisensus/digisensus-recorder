@@ -7,12 +7,7 @@ struct AgreementsCard: View {
     let play: (Double) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "calendar.badge.plus").foregroundStyle(Palette.accent)
-                Text("Agreed in this call")
-                    .font(.system(size: 15, weight: .bold))
-            }
+        SummarySection(symbol: "calendar.badge.plus", title: "Agreed in this call") {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(agreements) { agreement in
                     AgreementRow(library: library, recording: recording, agreement: agreement, play: play)
@@ -22,10 +17,6 @@ struct AgreementsCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.tertiary)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(radius: 14)
     }
 }
 

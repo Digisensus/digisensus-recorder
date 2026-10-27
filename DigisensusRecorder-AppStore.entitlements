@@ -17,7 +17,8 @@
     <!-- Digisensus transcription and summaries, or the user's own servers. -->
     <key>com.apple.security.network.client</key>
     <true/>
-    <!-- Adds the agreements of a call to Calendar when the user chooses to (write-only access). -->
+    <!-- Adds the agreements of a call to Calendar (write-only access) and its action items to Reminders,
+         when the user chooses to. -->
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
     <!-- Saves an exported transcript where the user chooses in the save panel. -->

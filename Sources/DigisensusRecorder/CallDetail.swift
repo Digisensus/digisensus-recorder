@@ -107,6 +107,11 @@ struct CallDetail: View {
         .onChange(of: draft.title) { draft.saveSoon(save) }
     }
 
+    private func play(from time: Double) {
+        player.seek(to: time)
+        if !player.isPlaying { player.togglePlayback() }
+    }
+
     private func loadAgreements() {
         draft.agreements = library.agreements(of: recording)
     }
@@ -190,11 +195,16 @@ struct CallDetail: View {
                         SummaryCard(summary: summary, points: recording.summaryPoints ?? [],
                                     error: error(for: \.summaryErrors),
                                     redo: library.aiService == .off ? nil : { library.summarize(recording) })
+                        if let decisions = recording.summaryDecisions {
+                            DecisionsCard(decisions: decisions, play: play(from:))
+                        }
+                        if let actions = recording.summaryActions {
+                            ActionsCard(actions: actions, notice: recording.id.flatMap { library.taskExportNotices[$0] },
+                                        setDone: { library.setAction(at: $0, done: $1, of: recording) },
+                                        send: { library.send($0, from: recording, to: $1) }, play: play(from:))
+                        }
                         if !draft.agreements.isEmpty {
-                            AgreementsCard(library: library, recording: recording, agreements: draft.agreements) { time in
-                                player.seek(to: time)
-                                if !player.isPlaying { player.togglePlayback() }
-                            }
+                            AgreementsCard(library: library, recording: recording, agreements: draft.agreements, play: play(from:))
                         }
                     }
                 } else {
@@ -336,20 +346,15 @@ private struct SummaryCard: View {
     let redo: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles").foregroundStyle(Palette.accent)
-                Text("Summary")
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let redo {
-                    Button("Redo", action: redo)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Palette.you)
-                        .help("Summarize this call again")
-                }
+        SummarySection(symbol: "sparkles", title: "Summary") {
+            if let redo {
+                Button("Redo", action: redo)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.you)
+                    .help("Summarize this call again")
             }
+        } content: {
             Text(summary)
                 .font(.system(size: 14))
                 .lineSpacing(4)
@@ -374,10 +379,6 @@ private struct SummaryCard: View {
                     .foregroundStyle(Palette.recordInk)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(radius: 14)
     }
 }
 

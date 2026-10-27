@@ -79,15 +79,21 @@ struct TranscriptExport {
 
     private var markdown: String {
         var lines = ["# \(recording.heading)", "", when, ""]
-        if !recording.tags.isEmpty { lines += ["Tags: " + recording.tags.joined(separator: ", "), ""] }
-        if let summary = recording.summaryLong { lines += ["## Summary", "", summary, ""] }
+        if !recording.tags.isEmpty { lines += [String(localized: "Tags: \(recording.tags.joined(separator: ", "))"), ""] }
+        if let summary = recording.summaryLong { lines += ["## " + String(localized: "Summary"), "", summary, ""] }
         if let points = recording.summaryPoints, !points.isEmpty { lines += points.map { "- \($0)" } + [""] }
+        if let decisions = recording.summaryDecisions {
+            lines += ["## " + String(localized: "Decisions"), ""] + decisions.map(\.markdown) + [""]
+        }
+        if let actions = recording.summaryActions {
+            lines += ["## " + String(localized: "Action items"), ""] + actions.map(\.markdown) + [""]
+        }
         if !agreements.isEmpty {
-            lines += ["## Agreed", ""]
+            lines += ["## " + String(localized: "Agreed in this call"), ""]
             lines += agreements.map { "- \($0.day)\($0.time.map { " \($0)" } ?? ""): \($0.title)" }
             lines.append("")
         }
-        lines += ["## Transcript", ""]
+        lines += ["## " + String(localized: "Transcript"), ""]
         lines += segments.map { "**\(Self.speaker($0))** [\(RecorderModel.clock($0.startTime))]: \($0.text)  " }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -123,22 +129,16 @@ struct TranscriptExport {
         var object: [String: Any] = [
             "title": recording.heading,
             "started_at": ISO8601DateFormatter().string(from: recording.startedAt),
-            "transcript": segments.map { ["speaker": Self.speaker($0), "start": $0.startTime, "end": $0.endTime, "text": $0.text] },
+            "transcript": segments.map { ["speaker": $0.channel == .me ? "Me" : "Them", "start": $0.startTime, "end": $0.endTime, "text": $0.text] },
         ]
         object["duration_seconds"] = recording.duration
         object["language"] = recording.transcriptLanguage
         object["summary"] = recording.summaryLong
         object["points"] = recording.summaryPoints
+        object["decisions"] = recording.summaryDecisions?.map(\.jsonObject)
+        object["actions"] = recording.summaryActions?.map(\.jsonObject)
         if !recording.tags.isEmpty { object["tags"] = recording.tags }
-        if !agreements.isEmpty {
-            object["agreements"] = agreements.map { agreement -> [String: Any] in
-                var item: [String: Any] = ["title": agreement.title, "kind": agreement.kind.rawValue, "date": agreement.day]
-                item["time"] = agreement.time
-                item["duration_minutes"] = agreement.durationMinutes
-                item["owner"] = agreement.owner?.rawValue
-                return item
-            }
-        }
+        if !agreements.isEmpty { object["agreements"] = agreements.map(\.jsonObject) }
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])) ?? Data()
         return String(decoding: data, as: UTF8.self) + "\n"
     }

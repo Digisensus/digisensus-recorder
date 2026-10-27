@@ -26,6 +26,8 @@ struct Recording: Codable, Identifiable, Equatable, FetchableRecord, MutablePers
     var summaryModel: String?
     var summaryTopic: String?
     var summaryPoints: [String]?
+    var summaryDecisions: [Decision]?
+    var summaryActions: [ActionItem]?
     var tags: [String] = []
     var transcriptJobID: String?
     var transcriptJobStartedAt: Date?
@@ -186,6 +188,13 @@ final class AppDatabase {
                 t.column("status", .text).notNull().defaults(to: "suggested")
             }
         }
+
+        migrator.registerMigration("v7 decisions and actions") { db in
+            try db.alter(table: "recording") { t in
+                t.add(column: "summaryDecisions", .jsonText)
+                t.add(column: "summaryActions", .jsonText)
+            }
+        }
         return migrator
     }
 }
@@ -282,6 +291,8 @@ extension AppDatabase {
                 recording.summaryModel = nil
                 recording.summaryTopic = nil
                 recording.summaryPoints = nil
+                recording.summaryDecisions = nil
+                recording.summaryActions = nil
                 try recording.update(db)
             }
             try Self.unaddedAgreements(of: recordingID).deleteAll(db)
@@ -295,7 +306,15 @@ extension AppDatabase {
             recording.summaryLong = summary.summary
             recording.summaryModel = model
             recording.summaryTopic = summary.topic
-            recording.summaryPoints = summary.points.isEmpty ? nil : summary.points
+            recording.summaryPoints = nil
+            recording.summaryDecisions = summary.decisions.isEmpty ? nil : summary.decisions
+            let doneBefore = Set((recording.summaryActions ?? []).filter(\.done).map { $0.text.lowercased() })
+            let actions = summary.actions.map { action in
+                var action = action
+                action.done = doneBefore.contains(action.text.lowercased())
+                return action
+            }
+            recording.summaryActions = actions.isEmpty ? nil : actions
             if recording.tags.isEmpty { recording.tags = Array(summary.tags.prefix(3)) }
             try recording.update(db)
             try Self.unaddedAgreements(of: recordingID).deleteAll(db)
@@ -320,6 +339,16 @@ extension AppDatabase {
 
     func saveAgreement(_ agreement: Agreement) throws {
         try writer.write { try agreement.update($0) }
+    }
+
+    func setAction(at index: Int, done: Bool, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID),
+                  var actions = recording.summaryActions, actions.indices.contains(index) else { return }
+            actions[index].done = done
+            recording.summaryActions = actions
+            try recording.update(db)
+        }
     }
 
     func setTags(_ tags: [String], recordingID: Int64) throws {

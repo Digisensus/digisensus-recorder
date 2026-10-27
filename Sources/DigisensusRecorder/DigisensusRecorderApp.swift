@@ -370,6 +370,13 @@ enum MenuIcon {
 }
 
 extension AppDelegate {
+    private static func rightmostScrollView(in view: NSView) -> NSScrollView? {
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            [view as? NSScrollView].compactMap { $0 } + view.subviews.flatMap(scrollViews)
+        }
+        return scrollViews(in: view).max { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
+    }
+
     private func snapshotUI(into folder: URL) async {
         func write(_ window: NSWindow?, _ name: String) {
             guard let view = window?.contentView?.superview ?? window?.contentView,
@@ -400,10 +407,21 @@ extension AppDelegate {
         library.showLatestDay()
         try? await Task.sleep(for: .seconds(5))
         write(mainWindow, "main-day")
+        if let detail = mainWindow?.contentView.flatMap(Self.rightmostScrollView), let document = detail.documentView {
+            let bottom = document.isFlipped ? document.bounds.maxY - detail.contentView.bounds.height : 0
+            for (name, offset) in [("main-decisions", bottom / 2), ("main-actions", bottom)] {
+                detail.contentView.scroll(to: NSPoint(x: 0, y: offset))
+                detail.reflectScrolledClipView(detail.contentView)
+                try? await Task.sleep(for: .seconds(1))
+                write(mainWindow, name)
+            }
+            detail.contentView.scroll(to: .zero)
+            detail.reflectScrolledClipView(detail.contentView)
+        }
         for tab in AppNavigation.DetailTab.allCases where tab != .summary {
             navigation.detailTab = tab
             try? await Task.sleep(for: .seconds(1))
-            write(mainWindow, "main-\(tab.rawValue.lowercased())")
+            write(mainWindow, "main-\(tab)")
         }
         navigation.detailTab = .summary
         library.showAll()

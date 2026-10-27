@@ -111,10 +111,17 @@ final class CalendarWriter {
 extension Agreement {
     var alarmOffset: TimeInterval { isAllDay ? 9 * 3600 : -15 * 60 }
 
+    func notes(from recording: Recording) -> String {
+        var lines = [recording.origin]
+        if let headline = recording.summaryShort { lines.append(headline) }
+        if let quote { lines += ["", "“\(quote)”"] }
+        return lines.joined(separator: "\n")
+    }
+
     func googleCalendarLink(notes: String) -> URL? {
         guard let start, let end else { return nil }
         let dates = isAllDay ? [start, end].map(Self.compactDay) : [start, end].map(Self.compactUTC.string(from:))
-        return Self.link(host: "calendar.google.com", path: "/calendar/render", query: [
+        return URL.link(host: "calendar.google.com", path: "/calendar/render", query: [
             "action": "TEMPLATE", "text": title, "dates": dates.joined(separator: "/"), "details": notes,
         ])
     }
@@ -122,7 +129,7 @@ extension Agreement {
     func outlookLink(host: String, notes: String) -> URL? {
         guard let start, let end else { return nil }
         let format = isAllDay ? Self.day(of:) : Self.internetUTC.string(from:)
-        return Self.link(host: host, path: "/calendar/0/deeplink/compose", query: [
+        return URL.link(host: host, path: "/calendar/0/deeplink/compose", query: [
             "path": "/calendar/action/compose", "rru": "addevent", "subject": title, "body": notes,
             "startdt": format(start), "enddt": format(end), "allday": isAllDay ? "true" : "false",
         ])

@@ -14,7 +14,8 @@ struct CallSummary: Equatable {
     var headline: String
     var summary: String
     var topic: String? = nil
-    var points: [String] = []
+    var decisions: [Decision] = []
+    var actions: [ActionItem] = []
     var tags: [String] = []
     var agreements: [Agreement] = []
 }
@@ -48,13 +49,27 @@ struct SummaryClient {
         recognition, so expect misheard or duplicated words and read through them.
 
         Answer with one JSON object and nothing else:
-        {"topic": "...", "headline": "...", "summary": "...", "points": ["..."], "tags": ["..."], "agreements": []}
+        {"topic": "...", "headline": "...", "summary": "...", "decisions": [], "actions": [], "tags": ["..."], \
+        "agreements": []}
         - "topic": 2 to 5 words naming the subject, like a title, with no final period.
         - "headline": exactly one sentence, at most 20 words, saying what the call was about.
-        - "summary": at most 3 sentences covering the topic and what was decided.
-        - "points": up to 4 short bullet points with decisions, next steps and deadlines. Start a \
-        step with "You:" when the person who recorded has to act, "Them:" when the other side does. \
-        Use an empty list when there are none.
+        - "summary": at most 3 sentences covering the topic and how the call ended.
+        - "decisions": every decision reached in the call, most important first, as objects \
+        {"text": "...", "comment": "...", "proposed_by": "them", "agreed_by": "both", "topic": "...", \
+        "at": "m:ss"}. "text" states the decision in one sentence; "comment" adds the reason, condition \
+        or open question around it in one short sentence, or is null; "proposed_by" is who suggested it \
+        and "agreed_by" who accepted it: "you" for the person who recorded, "them" for the other side, \
+        "both" for both, or null when the transcript does not show it; "topic" names the part of the \
+        call it belongs to in 1 to 3 words; "at" is the timestamp where it was settled.
+        - "actions": every task someone took on or was asked to do, in the order they came up, as \
+        objects {"text": "...", "owner": "you", "due": "...", "due_date": "YYYY-MM-DD", "due_weekday": \
+        "Friday", "topic": "...", "at": "m:ss"}. "text" starts with a verb; "owner" is "you" when the \
+        person who recorded has to do it, "them" for the other side, "both" for both; "due" says by \
+        when, as the call puts it, like "by Friday", or is null; "due_date" and "due_weekday" are that \
+        day, worked out as for "agreements", or null when "due" names no day; "topic" and "at" as for \
+        decisions, with the same topic names.
+        A long call can have up to 15 decisions and 25 actions. Merge repeated ones and leave out \
+        small talk. Use empty lists when there are none.
         - "tags": 1 to 3 short tags (one or two words, capitalised) that sort the call, such as \
         Work, Clients, Hiring or Personal.
         - "agreements": the meetings, calls, deadlines and reminders agreed in the call that fall on \
@@ -117,7 +132,7 @@ struct SummaryClient {
                 ["role": "user", "content": "Transcript:\n\(transcript)"],
             ],
         ]
-        let tuned = plain.merging(["temperature": 0.2, "max_tokens": 1500]) { $1 }
+        let tuned = plain.merging(["temperature": 0.2, "max_tokens": 3000]) { $1 }
         var attempts = [tuned, plain]
         if sendsChatTemplateHints {
             attempts.insert(tuned.merging(["chat_template_kwargs": ["enable_thinking": false]]) { $1 }, at: 0)
@@ -212,7 +227,8 @@ struct SummaryClient {
                 return CallSummary(headline: headline.isEmpty ? firstSentence(of: summary) : headline,
                                    summary: summary.isEmpty ? headline : summary,
                                    topic: topic.isEmpty ? nil : topic,
-                                   points: strings(object["points"]),
+                                   decisions: decisions(object["decisions"]),
+                                   actions: actions(object["actions"], recordedAt: recordedAt),
                                    tags: uniqueTags(strings(object["tags"])),
                                    agreements: agreements(object["agreements"], recordedAt: recordedAt))
             }
@@ -228,23 +244,62 @@ struct SummaryClient {
         ((value as? [Any]) ?? []).compactMap { $0 as? String }.map(clean).filter { !$0.isEmpty }
     }
 
-    private static func agreements(_ value: Any?, recordedAt: Date?) -> [Agreement] {
-        let earliest = recordedAt.map(Calendar.current.startOfDay)
+    private static func objects(_ value: Any?) -> [[String: Any]] {
+        ((value as? [Any]) ?? []).compactMap { $0 as? [String: Any] }
+    }
+
+    private static func trimmed(_ value: Any?, limit: Int) -> String? {
+        let text = String(clean(value as? String ?? "").prefix(limit))
+        return text.isEmpty ? nil : text
+    }
+
+    private static func decisions(_ value: Any?) -> [Decision] {
         var seen = Set<String>()
-        let agreements = ((value as? [Any]) ?? []).compactMap { $0 as? [String: Any] }.compactMap { item -> Agreement? in
-            let title = String(clean(item["title"] as? String ?? "").prefix(120))
-            guard !title.isEmpty, let given = Agreement.date(day: clean(item["date"] as? String ?? "")) else { return nil }
-            let date = Agreement.moving(given, toWeekday: item["weekday"] as? String ?? "")
-            if let earliest, date < earliest { return nil }
+        let decisions = objects(value).compactMap { item -> Decision? in
+            guard let text = trimmed(item["text"], limit: 300), seen.insert(text.lowercased()).inserted else { return nil }
+            return Decision(text: text, comment: trimmed(item["comment"], limit: 300),
+                            proposedBy: owner(item["proposed_by"]), agreedBy: owner(item["agreed_by"]),
+                            topic: trimmed(item["topic"], limit: 40), atSeconds: timestampSeconds(item["at"]))
+        }
+        return Array(decisions.prefix(15))
+    }
+
+    private static func actions(_ value: Any?, recordedAt: Date?) -> [ActionItem] {
+        var seen = Set<String>()
+        let actions = objects(value).compactMap { item -> ActionItem? in
+            guard let text = trimmed(item["text"], limit: 300), seen.insert(text.lowercased()).inserted else { return nil }
+            let dueDate = date(item["due_date"], weekday: item["due_weekday"], notBefore: recordedAt)
+            return ActionItem(text: text, owner: owner(item["owner"]), due: trimmed(item["due"], limit: 60),
+                              dueDate: dueDate.map(Agreement.day(of:)),
+                              topic: trimmed(item["topic"], limit: 40), atSeconds: timestampSeconds(item["at"]))
+        }
+        return Array(actions.prefix(25))
+    }
+
+    private static func date(_ value: Any?, weekday: Any?, notBefore recordedAt: Date?) -> Date? {
+        guard let given = Agreement.date(day: clean(value as? String ?? "")) else { return nil }
+        let date = Agreement.moving(given, toWeekday: weekday as? String ?? "")
+        if let recordedAt, date < Calendar.current.startOfDay(for: recordedAt) { return nil }
+        return date
+    }
+
+    private static func owner(_ value: Any?) -> Owner? {
+        (value as? String).flatMap { Owner(rawValue: clean($0).lowercased()) }
+    }
+
+    private static func agreements(_ value: Any?, recordedAt: Date?) -> [Agreement] {
+        var seen = Set<String>()
+        let agreements = objects(value).compactMap { item -> Agreement? in
+            guard let title = trimmed(item["title"], limit: 120),
+                  let date = date(item["date"], weekday: item["weekday"], notBefore: recordedAt) else { return nil }
             let time = (item["time"] as? String).flatMap(Agreement.minutesIntoDay).map(Agreement.time(minutesIntoDay:))
-            let quote = String(clean(item["quote"] as? String ?? "").prefix(300))
             let agreement = Agreement(
                 recordingId: 0, title: title,
                 kind: (item["kind"] as? String).flatMap { Agreement.Kind(rawValue: $0.lowercased()) } ?? (time == nil ? .deadline : .meeting),
-                owner: (item["owner"] as? String).flatMap { Agreement.Owner(rawValue: $0.lowercased()) },
+                owner: owner(item["owner"]),
                 day: Agreement.day(of: date), time: time,
                 durationMinutes: time == nil ? nil : durationMinutes(item["duration_minutes"]),
-                quote: quote.isEmpty ? nil : quote,
+                quote: trimmed(item["quote"], limit: 300),
                 atSeconds: timestampSeconds(item["at"]))
             return seen.insert(agreement.duplicateKey).inserted ? agreement : nil
         }

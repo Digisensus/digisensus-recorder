@@ -65,7 +65,7 @@ final class OwnServiceURLProtocol: URLProtocol {
         #expect(summary.headline == "Short call.")
         let bodies = sentBodies()
         #expect(bodies.count == 2)
-        #expect(bodies[0]["max_tokens"] as? Int == 1500 && bodies[0]["chat_template_kwargs"] == nil)
+        #expect(bodies[0]["max_tokens"] as? Int == 3000 && bodies[0]["chat_template_kwargs"] == nil)
         #expect(bodies[1]["max_tokens"] == nil && bodies[1]["temperature"] == nil)
         #expect(OwnServiceURLProtocol.requests.map(\.url.absoluteString).allSatisfy {
             $0 == "https://api.openai.com/v1/chat/completions"
@@ -81,7 +81,7 @@ final class OwnServiceURLProtocol: URLProtocol {
         let bodies = sentBodies()
         #expect(bodies.count == 3)
         #expect(bodies[0]["chat_template_kwargs"] != nil)
-        #expect(bodies[1]["chat_template_kwargs"] == nil && bodies[1]["max_tokens"] as? Int == 1500)
+        #expect(bodies[1]["chat_template_kwargs"] == nil && bodies[1]["max_tokens"] as? Int == 3000)
         #expect(bodies[2]["max_tokens"] == nil)
     }
 

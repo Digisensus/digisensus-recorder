@@ -152,6 +152,8 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var addingToCalendar: Set<Int64> = []
     @Published private(set) var agreementErrors: [Int64: String] = [:]
     private let calendarWriter = CalendarWriter()
+    @Published private(set) var taskExportNotices: [Int64: TaskExportNotice] = [:]
+    private let taskExporter = TaskExporter()
     @Published private(set) var connectionStatus: String?
 
     @Published var summary = LibraryStore.loadSummarySettings() {
@@ -690,6 +692,33 @@ final class LibraryStore: ObservableObject {
         }
     }
 
+    func setAction(at index: Int, done: Bool, of recording: Recording) {
+        guard let id = recording.id else { return }
+        do {
+            try database.setAction(at: index, done: done, recordingID: id)
+        } catch {
+            Log.write("could not update an action item of \(recording.fileName): \(error)")
+        }
+    }
+
+    func send(_ actions: [ActionItem], from recording: Recording, to app: TaskApp) {
+        guard let id = recording.id, !actions.isEmpty else { return }
+        taskExportNotices[id] = nil
+        Task {
+            do {
+                try await taskExporter.send(actions, from: recording, to: app)
+                if app == .reminders {
+                    taskExportNotices[id] = TaskExportNotice(text: String(localized: "Added \(actions.count) tasks to Reminders."),
+                                                             isError: false)
+                }
+                Log.write("sent \(actions.count) action items of \(recording.fileName) to \(app.rawValue)")
+            } catch {
+                taskExportNotices[id] = TaskExportNotice(text: error.localizedDescription, isError: true)
+                Log.write("could not send action items of \(recording.fileName) to \(app.rawValue): \(Log.describe(error))")
+            }
+        }
+    }
+
     func dismiss(_ agreement: Agreement) {
         var dismissed = agreement
         dismissed.status = .dismissed
@@ -860,13 +889,17 @@ extension Recording {
     }
 
     static func minutesText(_ seconds: Double) -> String {
-        let minutes = max(1, Int((seconds / 60).rounded()))
-        return minutes >= 60 ? "\(minutes / 60) h \(minutes % 60) min" : "\(minutes) min"
+        Duration.seconds(max(1, Int((seconds / 60).rounded())) * 60)
+            .formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
     }
 
     var durationText: String {
         guard let duration else { return "–" }
         return RecorderModel.clock(duration.rounded())
+    }
+
+    var origin: String {
+        String(localized: "From the call “\(heading)” on \(startedAt.formatted(date: .long, time: .shortened)), recorded with Digisensus Recorder.")
     }
 }
 

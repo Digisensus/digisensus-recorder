@@ -8,13 +8,12 @@ struct SummaryParsingTests {
             <think>Let me think about this call.</think>
             ```json
             {"topic": "Invoice review.", "headline": "They agreed the invoice.", "summary": "Two sentences. Here.",
-             "points": ["You: send the invoice", ""], "tags": ["#Work", "work", "Clients", "Extra"]}
+             "tags": ["#Work", "work", "Clients", "Extra"]}
             ```
             """
         let summary = try SummaryClient.parse(answer)
         #expect(summary.topic == "Invoice review")
         #expect(summary.headline == "They agreed the invoice.")
-        #expect(summary.points == ["You: send the invoice"])
         #expect(summary.tags == ["Work", "Clients", "Extra"], "case-insensitively unique, hashes stripped, at most three")
     }
 
@@ -73,6 +72,44 @@ struct SummaryParsingTests {
         let days = try SummaryClient.parse(answer, recordedAt: recordedAt).agreements.map(\.day)
         #expect(days == ["2026-11-04", "2026-11-06", "2026-11-02", "2026-11-05"],
                 "moved within its Monday-to-Sunday week; an unknown weekday name leaves the date alone")
+    }
+
+    @Test func readsDecisionsAndActionsWithTheirDetails() throws {
+        let answer = """
+            {"headline": "Rollout planned.", "summary": "Two waves.",
+             "decisions": [
+              {"text": "Pilot starts with 8 reps", "comment": "Full rollout after a review.", "proposed_by": "them",
+               "agreed_by": "Both", "topic": "Rollout", "at": "3:04"},
+              {"text": "pilot starts with 8 reps", "comment": null},
+              {"text": "  ", "comment": "nothing decided"}
+             ],
+             "actions": [
+              {"text": "Send the CRM export sample", "owner": "You", "due": "by Friday", "topic": "CRM", "at": "1:02:41"},
+              {"text": "Share the list of pilot users", "owner": "someone", "due": null}
+             ]}
+            """
+        let summary = try SummaryClient.parse(answer)
+        #expect(summary.decisions == [Decision(text: "Pilot starts with 8 reps", comment: "Full rollout after a review.",
+                                               proposedBy: .them, agreedBy: .both, topic: "Rollout", atSeconds: 184)],
+                "repeats and empty ones are dropped")
+        #expect(summary.actions == [
+            ActionItem(text: "Send the CRM export sample", owner: .you, due: "by Friday", topic: "CRM", atSeconds: 3761),
+            ActionItem(text: "Share the list of pilot users"),
+        ])
+    }
+
+    @Test func actionDueDatesFollowTheWeekdayAndSkipThePast() throws {
+        let answer = """
+            {"headline": "Tasks.", "summary": "Some tasks.", "actions": [
+             {"text": "Send the offer", "due": "by Friday", "due_date": "2026-10-29", "due_weekday": "Friday"},
+             {"text": "Fix the invoice", "due": "last week", "due_date": "2026-10-20"},
+             {"text": "Call back", "due": "soon", "due_date": null}
+            ]}
+            """
+        let recordedAt = try #require(Agreement.date(day: "2026-10-27"))
+        let actions = try SummaryClient.parse(answer, recordedAt: recordedAt).actions
+        #expect(actions.map(\.dueDate) == ["2026-10-30", nil, nil])
+        #expect(actions.map(\.due) == ["by Friday", "last week", "soon"])
     }
 
     @Test func aSummaryWithoutAgreementsStillParses() throws {

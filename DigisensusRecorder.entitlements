@@ -5,7 +5,8 @@
     <!-- Hardened runtime blocks the microphone unless this is granted. -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
-    <!-- Adds the agreements of a call to Calendar when the user chooses to (write-only access). -->
+    <!-- Adds the agreements of a call to Calendar (write-only access) and its action items to Reminders,
+         when the user chooses to. -->
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
     <!-- Reads browser tab addresses to name browser calls by their meeting app. -->
