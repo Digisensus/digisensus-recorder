@@ -4,6 +4,7 @@ final class AgentSocketServer {
     private let path: String
     private let handler: (Data) async -> Data
     private var descriptor: Int32 = -1
+    private var socketFile: ino_t?
     private let connections = DispatchQueue(label: "com.digisensus.recorder.agent.connections", attributes: .concurrent)
     private let openSlots = DispatchSemaphore(value: 4)
 
@@ -47,6 +48,7 @@ final class AgentSocketServer {
         }
 
         descriptor = socketDescriptor
+        socketFile = Self.inode(of: path)
         let thread = Thread { [weak self] in self?.acceptLoop(socketDescriptor) }
         thread.name = "com.digisensus.recorder.agent.accept"
         thread.start()
@@ -56,7 +58,13 @@ final class AgentSocketServer {
         guard descriptor >= 0 else { return }
         close(descriptor)
         descriptor = -1
-        unlink(path)
+        if let socketFile, Self.inode(of: path) == socketFile { unlink(path) }
+        socketFile = nil
+    }
+
+    private static func inode(of path: String) -> ino_t? {
+        var info = stat()
+        return stat(path, &info) == 0 ? info.st_ino : nil
     }
 
     private func acceptLoop(_ listening: Int32) {

@@ -14,9 +14,9 @@ enum CaptureError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .appNotRunning(let id): return "\(id) is not running."
-        case .noMicrophone: return "No microphone found."
-        case .microphoneUnavailable: return "The microphone couldn't be opened."
+        case .appNotRunning(let id): return String(localized: "\(id) is not running.")
+        case .noMicrophone: return String(localized: "No microphone found.")
+        case .microphoneUnavailable: return String(localized: "The microphone couldn't be opened.")
         }
     }
 }

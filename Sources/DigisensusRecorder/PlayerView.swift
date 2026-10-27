@@ -27,8 +27,8 @@ struct PlayerView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     VStack(spacing: 6) {
-                        Lane(label: "You", ink: Palette.you, wave: Palette.youWave, peaks: player.peaks[1], player: player)
-                        Lane(label: "Them", ink: Palette.them, wave: Palette.themWave, peaks: player.peaks[0], player: player)
+                        Lane(label: String(localized: "You"), ink: Palette.you, wave: Palette.youWave, peaks: player.peaks[1], player: player)
+                        Lane(label: String(localized: "Them"), ink: Palette.them, wave: Palette.themWave, peaks: player.peaks[0], player: player)
                     }
                     .overlay {
                         if player.isPreparing {
@@ -58,7 +58,7 @@ struct PlayerView: View {
                     }
                     .pickerStyle(.inline)
                 } label: {
-                    Text(Self.rateText(player.rate) + (player.channelMode == .both ? "" : player.channelMode == .me ? " · You" : " · Them"))
+                    Text(Self.rateText(player.rate) + Self.channelSuffix(player.channelMode))
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 8)
                         .frame(height: 24)
@@ -82,6 +82,14 @@ struct PlayerView: View {
 
     static func rateText(_ rate: Float) -> String {
         rate == rate.rounded() ? "\(Int(rate))×" : "\(rate.formatted())×"
+    }
+
+    static func channelSuffix(_ mode: PlayerModel.ChannelMode) -> String {
+        switch mode {
+        case .both: return ""
+        case .me: return " · " + String(localized: "You")
+        case .them: return " · " + String(localized: "Them")
+        }
     }
 }
 

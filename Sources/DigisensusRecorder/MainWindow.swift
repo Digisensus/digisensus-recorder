@@ -3,7 +3,7 @@ import SwiftUI
 enum SettingsTab: Int, CaseIterable {
     case general, ai, advanced, license
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .general: return "General"
         case .ai: return "Transcription & AI"
@@ -16,14 +16,24 @@ enum SettingsTab: Int, CaseIterable {
 
 @MainActor
 final class AppNavigation: ObservableObject {
-    enum DetailTab: String, CaseIterable, Identifiable {
-        case summary = "Summary", transcript = "Transcript", notes = "Notes"
-        var id: String { rawValue }
+    enum DetailTab: CaseIterable, Identifiable {
+        case summary, transcript, notes
+
+        var id: Self { self }
+
+        var title: LocalizedStringResource {
+            switch self {
+            case .summary: return "Summary"
+            case .transcript: return "Transcript"
+            case .notes: return "Notes"
+            }
+        }
     }
 
     @Published var showingLive = false
     @Published var settingsTab: SettingsTab?
     @Published var detailTab = DetailTab.summary
+    @Published var offeringLanguage = false
     var followNewestUntil: Date?
     var didOpen = false
     var openSettings: (SettingsTab) -> Void = { _ in }
@@ -53,6 +63,9 @@ struct MainView: View {
             }
         }
         .modifier(DeleteConfirmation(library: library))
+        .sheet(isPresented: $navigation.offeringLanguage, onDismiss: { LanguageOffer.markMade() }) {
+            LanguageOfferSheet(model: model)
+        }
         .frame(minWidth: 1040, minHeight: 640)
         .onAppear {
             library.syncFolder()
@@ -130,7 +143,7 @@ private struct DeleteConfirmation: ViewModifier {
 
     func body(content: Content) -> some View {
         content.confirmationDialog(
-            "Delete “\(library.pendingDeletion?.heading ?? "")”?",
+            Text("Delete “\(library.pendingDeletion?.heading ?? "")”?"),
             isPresented: Binding(get: { library.pendingDeletion != nil },
                                  set: { if !$0 { library.pendingDeletion = nil } }),
             titleVisibility: .visible
@@ -204,7 +217,7 @@ struct DevicesMenu: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "mic").font(.system(size: 12))
-                Text("\(model.micName) + \(model.sourceName)")
+                Text(verbatim: "\(model.micName) + \(model.sourceName)")
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -266,8 +279,8 @@ private struct Filters: View {
                         ForEach(sources, id: \.key) { source in
                             FilterChip(isOn: library.sourceFilter.contains(source.key),
                                        toggle: { library.sourceFilter.formSymmetricDifference([source.key]) }) {
-                                Text(source.key)
-                                Text("\(source.count)").fontWeight(.medium).opacity(0.7)
+                                Text(Recording.sourceTitle(source.key))
+                                Text(verbatim: "\(source.count)").fontWeight(.medium).opacity(0.7)
                             }
                         }
                     }
@@ -364,6 +377,14 @@ private struct PermissionStatus: View {
 }
 
 private struct AccountFooter: View {
+    static func creditHelp(_ balance: DigisensusAccount.Balance) -> String {
+        let free = DigisensusAccount.credit(balance.free)
+        let daily = DigisensusAccount.credit(balance.dailyFree)
+        guard balance.referral > 0 else { return String(localized: "\(free) of \(daily) free credit left today") }
+        let referral = DigisensusAccount.credit(balance.referral)
+        return String(localized: "\(free) of \(daily) free credit left today, plus \(referral) referral credit")
+    }
+
     @ObservedObject var library: LibraryStore
     @ObservedObject var account: DigisensusAccount
     @ObservedObject var navigation: AppNavigation
@@ -421,8 +442,7 @@ private struct AccountFooter: View {
             if account.isSignedIn, let balance = account.balance {
                 Text("Free credit today").font(.system(size: 12, weight: .semibold))
                 CreditBar(fraction: balance.freeFraction)
-                    .help("\(DigisensusAccount.credit(balance.free)) of \(DigisensusAccount.credit(balance.dailyFree)) free credit left today"
-                          + (balance.referral > 0 ? ", plus \(DigisensusAccount.credit(balance.referral)) referral credit" : ""))
+                    .help(Self.creditHelp(balance))
             } else if account.isSignedIn {
                 Text("Digisensus").font(.system(size: 12, weight: .semibold))
                 Text("Signed in").font(.system(size: 11)).foregroundStyle(Palette.tertiary)

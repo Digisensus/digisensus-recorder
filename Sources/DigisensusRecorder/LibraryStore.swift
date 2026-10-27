@@ -197,8 +197,8 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    static let interrupted = "Transcription was interrupted. Try again."
-    static let tookTooLong = "Transcription did not finish within 2 hours. Try again."
+    static let interrupted = String(localized: "Transcription was interrupted. Try again.")
+    static let tookTooLong = String(localized: "Transcription did not finish within 2 hours. Try again.")
 
     func resumeTranscriptions() {
         guard let pending = try? database.pendingTranscriptions() else { return }
@@ -396,7 +396,7 @@ final class LibraryStore: ObservableObject {
         guard let id = recording.id, !summarizing.contains(id) else { return }
         let segments = (try? database.segments(recordingID: id)) ?? []
         guard !segments.isEmpty else {
-            summaryErrors[id] = "Transcribe the recording first; the summary is made from the transcript."
+            summaryErrors[id] = String(localized: "Transcribe the recording first; the summary is made from the transcript.")
             return
         }
         guard aiService != .off else {
@@ -421,7 +421,8 @@ final class LibraryStore: ObservableObject {
             let model = settings.model
             do {
                 let started = Date()
-                let result = try await client.summarize(segments, knownTags: knownTags, recordedAt: recording.startedAt)
+                let result = try await client.summarize(segments, knownTags: knownTags, recordedAt: recording.startedAt,
+                                                        languageRule: SummaryLanguage.rule(for: SummaryLanguage.chosen))
                 try database.saveSummary(result, model: model, recordingID: id)
                 agreementRevision += 1
                 Log.write(String(format: "summarised %@ in %.1f s", recording.fileName, Date().timeIntervalSince(started)))
@@ -439,7 +440,7 @@ final class LibraryStore: ObservableObject {
             summaryConnectionStatus = Self.signInNeeded
             return
         }
-        summaryConnectionStatus = "Checking…"
+        summaryConnectionStatus = String(localized: "Checking…")
         Task {
             let checked = await withSummaryModel(settings)
             let status = await SummaryClient(settings: checked).checkConnection()
@@ -488,7 +489,7 @@ final class LibraryStore: ObservableObject {
             connectionStatus = Self.signInNeeded
             return
         }
-        connectionStatus = "Checking…"
+        connectionStatus = String(localized: "Checking…")
         let client = TranscriptionClient(settings: settings)
         Task {
             let status = await client.checkConnection()
@@ -496,8 +497,8 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    private static let signInNeeded = "Sign in to Digisensus in Settings › Transcription & AI, or choose Local & Cloud API."
-    private static let aiIsOff = "Transcription is off. Choose a service in Settings › Transcription & AI."
+    private static let signInNeeded = String(localized: "Sign in to Digisensus in Settings › Transcription & AI, or choose Local & Cloud API.")
+    private static let aiIsOff = String(localized: "Transcription is off. Choose a service in Settings › Transcription & AI.")
 
     func transcriptionSettings() -> TranscriptionSettings? {
         var settings = transcription
@@ -847,9 +848,9 @@ enum AIService: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .digisensus: return "Digisensus FREE"
-        case .own: return "Local & Cloud API"
-        case .off: return "Off"
+        case .digisensus: return String(localized: "Digisensus FREE")
+        case .own: return String(localized: "Local & Cloud API")
+        case .off: return String(localized: "Off")
         }
     }
 }
@@ -861,14 +862,22 @@ extension Recording {
 
     static func channelName(for sourceLabel: String?) -> String {
         switch sourceLabel {
-        case nil: return "Recording"
-        case "Phone": return "Phone call"
-        case "Meet": return "Google Meet call"
-        case let label?: return "\(label) call"
+        case nil: return String(localized: "Recording")
+        case "Phone": return String(localized: "Phone call")
+        case "Meet": return String(localized: "Google Meet call")
+        case let label?: return String(localized: "\(label) call")
         }
     }
 
     var sourceKey: String { sourceLabel ?? "Manual" }
+
+    static func sourceTitle(_ key: String) -> String {
+        switch key {
+        case "Manual": return String(localized: "Manual")
+        case "Phone": return String(localized: "Phone")
+        default: return key
+        }
+    }
 
     var isPhoneCall: Bool { sourceLabel == "Phone" }
 

@@ -37,7 +37,7 @@ struct MessagesView: View {
             Circle()
                 .fill(center.read.contains(message.id) ? Color.clear : Palette.accent)
                 .frame(width: 7, height: 7)
-                .accessibilityLabel(center.read.contains(message.id) ? "" : "Unread")
+                .accessibilityLabel(center.read.contains(message.id) ? "" : String(localized: "Unread"))
             VStack(alignment: .leading, spacing: 2) {
                 Text(message.title)
                     .font(.system(size: 13, weight: center.read.contains(message.id) ? .regular : .semibold))

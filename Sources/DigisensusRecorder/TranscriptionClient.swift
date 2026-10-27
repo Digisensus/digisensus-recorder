@@ -32,12 +32,12 @@ enum TranscriptionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badServerURL: return "The transcription server address isn't a valid URL."
+        case .badServerURL: return String(localized: "The transcription server address isn't a valid URL.")
         case .server(let code, let detail) where AIProvider.explainsRefusal(status: code): return detail
-        case .server(let code, let detail): return "The transcription server answered \(code): \(detail)"
-        case .unreadableResponse: return "The transcription server sent a response the app doesn't understand."
+        case .server(let code, let detail): return String(localized: "The transcription server answered \(code): \(detail)")
+        case .unreadableResponse: return String(localized: "The transcription server sent a response the app doesn't understand.")
         case .unsplittable(let detail):
-            return "This server doesn't separate speakers, and the recording's channels couldn't be split: \(detail)"
+            return String(localized: "This server doesn't separate speakers, and the recording's channels couldn't be split: \(detail)")
         }
     }
 }
@@ -96,11 +96,11 @@ struct TranscriptionClient {
             guard let json else { return .running(waitHint: nil) }
             if json["status"] as? String == "failed" {
                 let message = (json["error"] as? [String: Any])?["message"] as? String
-                return .failed(message ?? "Transcription failed. Please try again.")
+                return .failed(message ?? String(localized: "Transcription failed. Please try again."))
             }
             return .done(json)
         case 404:
-            return .failed("The transcription job is no longer available. Try again.")
+            return .failed(String(localized: "The transcription job is no longer available. Try again."))
         case 408, 500...599:
             Log.write("job \(jobID) poll answered \(status), trying again")
             return .running(waitHint: nil)
@@ -155,7 +155,7 @@ struct TranscriptionClient {
             }
         }
         await cancel(job.id)
-        throw TranscriptionError.server(504, "Transcription did not finish in time.")
+        throw TranscriptionError.server(504, String(localized: "Transcription did not finish in time."))
     }
 
     func checkConnection() async -> String {

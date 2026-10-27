@@ -17,9 +17,9 @@ struct AIPreset: Identifiable, Hashable {
     var transcriptionModel: String? = nil
     var summaryModel: String? = nil
 
-    static let local = AIPreset(id: "local", name: "Local server", place: .thisMac, server: nil, transcribes: true,
+    static let local = AIPreset(id: "local", name: String(localized: "Local server"), place: .thisMac, server: nil, transcribes: true,
                                 transcriptionModel: "whisper-1")
-    static let other = AIPreset(id: "other", name: "Other server", place: .anywhere, server: nil, transcribes: true,
+    static let other = AIPreset(id: "other", name: String(localized: "Other server"), place: .anywhere, server: nil, transcribes: true,
                                 transcriptionModel: "whisper-1")
 
     static let all: [AIPreset] = [
@@ -84,7 +84,7 @@ struct AIPreset: Identifiable, Hashable {
     }
 
     var keyPrompt: String {
-        place == .cloud ? "Required" : "Optional"
+        place == .cloud ? String(localized: "Required") : String(localized: "Optional")
     }
 }
 
@@ -239,11 +239,11 @@ enum ConnectionCheck {
 
     static func run(_ settings: some AIServiceSettings, for purpose: AIPurpose, session: URLSession = .app) async -> String {
         let healthChecks = URL.healthChecks(on: settings.server)
-        guard !healthChecks.isEmpty else { return "Not a valid URL." }
-        let warning = URL.sendsKeyInTheClear(settings) ? " Warning: this address is http, so the API key travels unencrypted." : ""
+        guard !healthChecks.isEmpty else { return String(localized: "Not a valid URL.") }
+        let warning = URL.sendsKeyInTheClear(settings) ? " " + String(localized: "Warning: this address is http, so the API key travels unencrypted.") : ""
         let listed = await ModelList.fetch(settings, for: purpose, session: session)
         if listed.status == 200 {
-            return (settings.provider == .digisensus ? "Connected." : describe(listed.names, model: settings.model, for: purpose))
+            return (settings.provider == .digisensus ? String(localized: "Connected.") : describe(listed.names, model: settings.model, for: purpose))
                 + warning
         }
         if listed.status == 401 || listed.status == 403 { return failure(settings.server, status: listed.status) }
@@ -252,26 +252,26 @@ enum ConnectionCheck {
             var request = URLRequest(url: health, timeoutInterval: 6)
             request.authorize(apiKey: settings.apiKey, provider: settings.provider, api: settings.api(for: purpose))
             let status = (try? await session.data(for: request)).flatMap { ($0.1 as? HTTPURLResponse)?.statusCode }
-            if status == 200 { return "Connected." + warning }
+            if status == 200 { return String(localized: "Connected.") + warning }
             healthStatus = healthStatus ?? status
         }
         return failure(settings.server, status: listed.status ?? healthStatus)
     }
 
     static func describe(_ names: [String], model: String, for purpose: AIPurpose) -> String {
-        guard !model.isEmpty else { return "Connected, but no model is chosen. Choose one in Settings › Transcription & AI." }
-        guard !names.isEmpty else { return "Connected." }
-        if names.contains(model) { return "Connected; model “\(model)” is available." }
+        guard !model.isEmpty else { return String(localized: "Connected, but no model is chosen. Choose one in Settings › Transcription & AI.") }
+        guard !names.isEmpty else { return String(localized: "Connected.") }
+        if names.contains(model) { return String(localized: "Connected; model “\(model)” is available.") }
         let offered = ModelList.offered(names, for: purpose)
         let shown = offered.prefix(offeredModelLimit).joined(separator: ", ") + (offered.count > offeredModelLimit ? ", …" : "")
-        return "Connected, but it has no model “\(model)”. It offers: \(shown)."
+        return String(localized: "Connected, but it has no model “\(model)”. It offers: \(shown).")
     }
 
     static func failure(_ server: String, status: Int?) -> String {
         switch status {
-        case nil: return "No answer from \(server)."
-        case 401, 403: return "\(server) refused the API key."
-        case let status?: return "\(server) answered \(status). Check the server address."
+        case nil: return String(localized: "No answer from \(server).")
+        case 401, 403: return String(localized: "\(server) refused the API key.")
+        case let status?: return String(localized: "\(server) answered \(status). Check the server address.")
         }
     }
 }

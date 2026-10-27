@@ -68,7 +68,7 @@ struct CallDetail: View {
                 PlayerView(player: player)
             }
             Picker("Show", selection: $navigation.detailTab) {
-                ForEach(AppNavigation.DetailTab.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(AppNavigation.DetailTab.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -150,7 +150,7 @@ struct CallDetail: View {
                 .accessibilityLabel("Call name")
             FlowLayout(spacing: 8) {
                 Text(DayText.title(recording.startedAt) + ", " + recording.startedAt.formatted(date: .omitted, time: .shortened))
-                Text("·")
+                Text(verbatim: "·")
                 Text(recording.durationShort)
                 ForEach(recording.tags, id: \.self) { tag in
                     TagChip(tag: tag, size: 12)
@@ -365,7 +365,7 @@ private struct SummaryCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(points, id: \.self) { point in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text("•")
+                            Text(verbatim: "•")
                             Text(point).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -461,7 +461,7 @@ struct LiveRecordingView: View {
     @ObservedObject var model: RecorderModel
     @ObservedObject var library: LibraryStore
 
-    private var footnote: String {
+    private var footnote: LocalizedStringResource {
         switch library.aiService {
         case .off: return "Audio only. Turn on transcripts in Settings › Transcription & AI."
         case _ where library.autoProcess: return "Transcript, summary and tags are added automatically after you stop."
@@ -474,7 +474,7 @@ struct LiveRecordingView: View {
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     PulsingDot(color: Palette.record)
-                    Text("Recording · " + (model.autoStarted ? "started automatically" : "started by hand"))
+                    Text(model.autoStarted ? "Recording · started automatically" : "Recording · started by hand")
                 }
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Palette.recordInk)

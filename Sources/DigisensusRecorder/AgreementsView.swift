@@ -123,14 +123,10 @@ private struct AgreementRow: View {
         var parts = [start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())]
         if !agreement.isAllDay {
             parts.append(start.formatted(date: .omitted, time: .shortened))
-            parts.append("\(agreement.durationMinutes ?? Agreement.defaultMinutes) min")
+            parts.append(Duration.seconds((agreement.durationMinutes ?? Agreement.defaultMinutes) * 60)
+                .formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)))
         }
-        switch agreement.owner {
-        case .you: parts.append("You")
-        case .them: parts.append("Them")
-        case .both: parts.append("Both")
-        case nil: break
-        }
+        if let owner = agreement.owner { parts.append(owner.label) }
         return parts.joined(separator: " · ")
     }
 }
@@ -180,7 +176,8 @@ private struct AgreementEditor: View {
                 if !allDay {
                     Picker("Duration", selection: $minutes) {
                         ForEach(Self.durations, id: \.self) { minutes in
-                            Text(minutes < 60 || minutes % 60 != 0 ? "\(minutes) min" : "\(minutes / 60) h").tag(minutes)
+                            Text(Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)))
+                                .tag(minutes)
                         }
                     }
                 }

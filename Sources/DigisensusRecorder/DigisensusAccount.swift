@@ -104,7 +104,7 @@ final class DigisensusAccount: ObservableObject {
     var spendingBlock: String? {
         guard let balance, !balance.canSpend else { return nil }
         guard let resets = balance.resetsAt, resets > Date() else { return nil }
-        return "Today's free Digisensus credit is used up. It renews at \(resets.formatted(date: .omitted, time: .shortened))."
+        return String(localized: "Today's free Digisensus credit is used up. It renews at \(resets.formatted(date: .omitted, time: .shortened)).")
     }
 
     func model(for kind: String, fallback: String) -> String {
@@ -136,7 +136,7 @@ final class DigisensusAccount: ObservableObject {
                 guard reply.status == 201,
                       let id = reply.json["registration_id"] as? String,
                       let secret = reply.json["poll_secret"] as? String else {
-                    throw AccountError.server(reply.message ?? "Couldn't start signing in (\(reply.status)).")
+                    throw AccountError.server(reply.message ?? String(localized: "Couldn't start signing in (\(reply.status))."))
                 }
                 let expires = (reply.json["expires_at"] as? String).flatMap(Self.parseDate) ?? Date().addingTimeInterval(1800)
                 let interval = max(reply.json["poll_interval"] as? Double ?? 2, 1)
@@ -186,19 +186,19 @@ final class DigisensusAccount: ObservableObject {
                 Log.write("signed in to Digisensus")
                 switch reply.json["referral"] as? String {
                 case "pending":
-                    message = "Invite accepted. You and your friend each get \(Self.credit(referralReward)) after your first transcription of a minute or more."
+                    message = String(localized: "Invite accepted. You and your friend each get \(Self.credit(referralReward)) after your first transcription of a minute or more.")
                 case "not_eligible":
-                    message = "Signed in. The invite code only applies to new Digisensus users, so no referral credit this time."
+                    message = String(localized: "Signed in. The invite code only applies to new Digisensus users, so no referral credit this time.")
                 default:
                     break
                 }
                 await refresh()
                 return
             default:
-                throw AccountError.server(reply.message ?? "Signing in failed (\(reply.status)).")
+                throw AccountError.server(reply.message ?? String(localized: "Signing in failed (\(reply.status))."))
             }
         }
-        throw AccountError.server("The confirmation link expired. Send a new one.")
+        throw AccountError.server(String(localized: "The confirmation link expired. Send a new one."))
     }
 
     func refresh() async {
@@ -207,7 +207,7 @@ final class DigisensusAccount: ObservableObject {
             let account = try await call("GET", "v1/account", bearer: token)
             if account.status == 401 || account.status == 403 {
                 forgetToken()
-                message = account.message ?? "You were signed out. Sign in again."
+                message = account.message ?? String(localized: "You were signed out. Sign in again.")
                 return
             }
             guard account.status == 200 else { return }
@@ -269,7 +269,7 @@ final class DigisensusAccount: ObservableObject {
                     reply = try await call("POST", "v1/referral/agree", bearer: token, body: ["terms_version": current])
                 }
                 guard reply.status == 200 else {
-                    throw AccountError.server(reply.message ?? "Couldn't get an invite link (\(reply.status)).")
+                    throw AccountError.server(reply.message ?? String(localized: "Couldn't get an invite link (\(reply.status))."))
                 }
                 guard deviceToken == token else { return }
                 referral = Self.referral(from: reply.json)
@@ -340,7 +340,7 @@ final class DigisensusAccount: ObservableObject {
                 Log.write("training \(enabled ? "on" : "off")")
             } else {
                 trainingEnabled = trainingConfirmed
-                message = failure ?? reply?.message ?? "Couldn't save the setting (\(reply?.status ?? 0))."
+                message = failure ?? reply?.message ?? String(localized: "Couldn't save the setting (\(reply?.status ?? 0)).")
             }
         }
         trainingSave = save
@@ -352,11 +352,11 @@ final class DigisensusAccount: ObservableObject {
             do {
                 let reply = try await call("DELETE", "v1/account", bearer: token)
                 guard reply.status == 204 else {
-                    message = reply.message ?? "Couldn't delete the account (\(reply.status))."
+                    message = reply.message ?? String(localized: "Couldn't delete the account (\(reply.status)).")
                     return
                 }
                 forgetToken()
-                message = "Your Digisensus account was deleted."
+                message = String(localized: "Your Digisensus account was deleted.")
             } catch {
                 message = error.localizedDescription
             }
@@ -390,7 +390,7 @@ final class DigisensusAccount: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .server(let message): return message
-            case .unexpected: return "The Digisensus service sent an unexpected answer."
+            case .unexpected: return String(localized: "The Digisensus service sent an unexpected answer.")
             }
         }
     }

@@ -55,7 +55,7 @@ struct MenuBarPanel: View {
                     Button(pending.isReady ? "Restart to Update" : "Update…", action: updates.installNow)
                         .controlSize(.small)
                         .disabled(model.isRecording)
-                        .help(model.isRecording ? "Updates wait until the recording ends" : "")
+                        .help(model.isRecording ? String(localized: "Updates wait until the recording ends") : "")
                 }
                 .padding(.horizontal, 14)
                 .frame(height: 44)
@@ -77,7 +77,7 @@ struct MenuBarPanel: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         if messages.unreadCount > 0 {
-                            Text("\(messages.unreadCount)")
+                            Text(verbatim: "\(messages.unreadCount)")
                                 .font(.system(size: 11, weight: .bold))
                                 .monospacedDigit()
                                 .foregroundStyle(.white)
@@ -194,7 +194,7 @@ struct MenuBarPanel: View {
                     .font(.system(size: 13, weight: .bold))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("\(DayText.short(recording.startedAt)) · \(recording.durationShort)")
+                Text(verbatim: "\(DayText.short(recording.startedAt)) · \(recording.durationShort)")
                     .font(.system(size: 12))
                     .monospacedDigit()
                     .foregroundStyle(Palette.tertiary)

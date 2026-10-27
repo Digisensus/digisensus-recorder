@@ -50,9 +50,27 @@ private struct GeneralSettings: View {
     @ObservedObject var library: LibraryStore
     @ObservedObject var permissions: Permissions
     @AppStorage("showInDock") private var showInDock = true
+    @State private var appLanguage = AppLanguage.chosen
 
     var body: some View {
         Form {
+            Section("Language") {
+                Picker("App language", selection: $appLanguage) {
+                    Text("Same as macOS").tag("")
+                    Divider()
+                    ForEach(AppLanguage.byNativeName, id: \.self) { Text(AppLanguage.nativeName($0)).tag($0) }
+                }
+                .onChange(of: appLanguage) { _, code in AppLanguage.apply(code) }
+                if AppLanguage.shown(for: appLanguage) != AppLanguage.inUse {
+                    LabeledContent {
+                        Button("Restart Now", action: AppLanguage.relaunch).disabled(model.isRecording)
+                    } label: {
+                        Text("Restart Digisensus Recorder to switch the language.")
+                        if model.isRecording { Text("Available when the recording ends.") }
+                    }
+                }
+            }
+
             Section {
                 Group {
                     Picker("Your microphone", selection: $model.micID) {
@@ -131,8 +149,8 @@ private struct GeneralSettings: View {
     private var storageSummary: String {
         let recordings = library.recordings
         let bytes = recordings.reduce(Int64(0)) { $0 + $1.sizeBytes }
-        return "Ogg Opus, under 11 MB per hour · \(recordings.count) recording\(recordings.count == 1 ? "" : "s"), "
-            + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return String(localized: "Ogg Opus, under 11 MB per hour") + " · " + String(localized: "\(recordings.count) recordings") + ", " + size
     }
 }
 
@@ -162,6 +180,7 @@ private struct AISettings: View {
     @ObservedObject var library: LibraryStore
     @ObservedObject var account: DigisensusAccount
     @StateObject private var form = SignInForm()
+    @AppStorage(SummaryLanguage.key) private var summaryLanguage = SummaryLanguage.followsApp
 
     var body: some View {
         Form {
@@ -194,10 +213,16 @@ private struct AISettings: View {
                         Text("Do it automatically")
                         Text("Transcribe, summarize and tag every new call when it ends.")
                     }
-                    Picker("Language", selection: $library.transcription.language) {
+                    Picker("Spoken language", selection: $library.transcription.language) {
                         ForEach(Languages.choices(including: library.transcription.language), id: \.code) {
                             Text($0.name).tag($0.code)
                         }
+                    }
+                    Picker("Write summaries in", selection: $summaryLanguage) {
+                        Text("App language (\(AppLanguage.nativeName(AppLanguage.inUse)))").tag(SummaryLanguage.followsApp)
+                        Text("Same as the call").tag(SummaryLanguage.matchesCall)
+                        Divider()
+                        ForEach(AppLanguage.byNativeName, id: \.self) { Text(AppLanguage.nativeName($0)).tag($0) }
                     }
                 }
             }
@@ -254,7 +279,7 @@ private struct DigisensusAccountRows: View {
                 ProgressView().controlSize(.small)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Check your inbox at \(address)")
-                    Text("Open the link in the email and press Confirm, on any device. The app signs in by itself. The link works until \(expires.formatted(date: .omitted, time: .shortened)).")
+                    Text("Open the link in the email and confirm your email address, on any device. The app signs in by itself. The link works until \(expires.formatted(date: .omitted, time: .shortened)).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -286,7 +311,7 @@ private struct DigisensusAccountRows: View {
                         Spacer()
                         HStack(spacing: 4) {
                             CreditAmount(amount: balance.free, size: 11)
-                            Text("left of")
+                            Text(verbatim: "/")
                             CreditAmount(amount: balance.dailyFree, size: 11)
                             if let resets = balance.resetsAt {
                                 Text("· renews at \(resets.formatted(date: .omitted, time: .shortened))")
@@ -375,19 +400,22 @@ private struct InviteRows: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Text("You each get")
+                    Text("Reward for each of you:")
                     CreditAmount(amount: reward, size: 11)
-                    Text("after your friend's first transcription of a minute or more. Up to \(referral.maxPerYear) friends a year.")
+                }
+                HStack(spacing: 4) {
+                    Text("Credited after your friend's first transcription of a minute or more. Up to \(referral.maxPerYear) friends a year.")
                     Link("Terms", destination: termsURL)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
+                Text("Invite a friend to Digisensus Recorder.")
                 HStack(spacing: 4) {
-                    Text("Invite a friend and you each get")
+                    Text("Reward for each of you:")
                     CreditAmount(amount: reward)
-                    Text("of credit after their first transcription of a minute or more.")
                 }
+                Text("Credited after your friend's first transcription of a minute or more.")
                 Text("Referral credit is valid for 30 days and can't be refunded or paid out. To prevent abuse, invites are checked for fraud using IP addresses and a one-way device ID, and some are reviewed by hand before credit is added.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -409,12 +437,12 @@ private struct InviteRows: View {
 
     static func statusText(_ status: String) -> String {
         switch status {
-        case "pending_activity": return "Waiting for first transcription"
-        case "approved": return "Credit added"
-        case "held": return "Being reviewed"
-        case "rejected": return "Not eligible"
-        case "expired": return "Expired"
-        case "revoked": return "Credit removed"
+        case "pending_activity": return String(localized: "Waiting for first transcription")
+        case "approved": return String(localized: "Credit added")
+        case "held": return String(localized: "Being reviewed")
+        case "rejected": return String(localized: "Not eligible")
+        case "expired": return String(localized: "Expired")
+        case "revoked": return String(localized: "Credit removed")
         default: return status
         }
     }
@@ -467,8 +495,7 @@ private struct OwnServiceSection<Settings: AIServiceSettings>: View {
                         .frame(width: Self.controlWidth)
                 } label: {
                     Text("Server address")
-                    Text("Include the version path the server documents, usually /v1, as in \(preset.addressPrompt(for: purpose)). "
-                         + "An address without a path gets /v1 added.")
+                    Text("Include the version path the server documents, usually /v1, as in \(preset.addressPrompt(for: purpose)). An address without a path gets /v1 added.")
                 }
             }
             LabeledContent("API key") {
@@ -541,8 +568,8 @@ struct ServicePicker: View {
 
     var body: some View {
         let item = { (preset: AIPreset) in PopUpMenu.Entry.item(preset.id, title: preset.name) }
-        PopUpMenu(entries: [.header("On this Mac")] + AIPreset.choices(for: purposes, in: .thisMac).map(item)
-                      + [.header("Cloud")] + AIPreset.choices(for: purposes, in: .cloud).map(item)
+        PopUpMenu(entries: [.header(String(localized: "On this Mac"))] + AIPreset.choices(for: purposes, in: .thisMac).map(item)
+                      + [.header(String(localized: "Cloud"))] + AIPreset.choices(for: purposes, in: .cloud).map(item)
                       + [.separator] + AIPreset.choices(for: purposes, in: .anywhere).map(item),
                   selection: selection.id) { id in
             AIPreset.named(id).map(choose)
@@ -562,10 +589,10 @@ private final class ModelCatalog: ObservableObject {
 
     var hint: String? {
         switch state {
-        case .loading: return "Loading the server's models…"
+        case .loading: return String(localized: "Loading the server's models…")
         case .listed: return nil
-        case .needsKey: return "Enter the API key to load the model list."
-        case .unlisted: return "This server doesn't list its models. Type the name."
+        case .needsKey: return String(localized: "Enter the API key to load the model list.")
+        case .unlisted: return String(localized: "This server doesn't list its models. Type the name.")
         }
     }
 
@@ -594,8 +621,8 @@ private struct ModelChooser: View {
 
     var body: some View {
         if catalog.state == .unlisted {
-            TextField(purpose == .transcription ? "ASR model" : "LLM model", text: $model,
-                      prompt: Text(preset.suggestedModel(for: purpose) ?? "Model name"))
+            TextField(purpose == .transcription ? String(localized: "ASR model") : String(localized: "LLM model"), text: $model,
+                      prompt: Text(preset.suggestedModel(for: purpose) ?? String(localized: "Model name")))
                 .labelsHidden()
                 .multilineTextAlignment(.leading)
         } else {
@@ -612,9 +639,9 @@ private struct ModelChooser: View {
         }
         var entries = offered.map { PopUpMenu.Entry.item($0, title: $0) }
         if model.isEmpty {
-            entries.insert(.item("", title: "Choose a model"), at: 0)
+            entries.insert(.item("", title: String(localized: "Choose a model")), at: 0)
         } else if !offered.contains(model) {
-            entries.insert(.item(model, title: "\(model) (not offered)"), at: 0)
+            entries.insert(.item(model, title: String(localized: "\(model) (not offered)")), at: 0)
         }
         return entries
     }
@@ -712,15 +739,25 @@ enum Languages {
         if !current.isEmpty, !list.contains(current) { list.append(current) }
         let named = list.map { Choice(code: $0, name: Locale.current.localizedString(forLanguageCode: $0)?.capitalized ?? $0) }
             .sorted { $0.name < $1.name }
-        return [Choice(code: "", name: "Detect automatically")] + named
+        return [Choice(code: "", name: String(localized: "Detect automatically"))] + named
     }
 }
 
 @MainActor
 private final class AgentConnection: ObservableObject {
-    enum Client: String, CaseIterable, Identifiable {
-        case claude = "Claude Code", codex = "Codex", other = "Other MCP clients", cli = "Command line"
-        var id: String { rawValue }
+    enum Client: CaseIterable, Identifiable {
+        case claude, codex, other, cli
+
+        var id: Self { self }
+
+        var title: LocalizedStringResource {
+            switch self {
+            case .claude: return "Claude Code"
+            case .codex: return "Codex"
+            case .other: return "Other MCP clients"
+            case .cli: return "Command line"
+            }
+        }
     }
 
     @Published var client = Client.claude
@@ -780,7 +817,7 @@ private struct AdvancedSettings: View {
                         }
                     }
                     Picker("Agent", selection: $connection.client) {
-                        ForEach(AgentConnection.Client.allCases) { Text($0.rawValue).tag($0) }
+                        ForEach(AgentConnection.Client.allCases) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
                     .fixedSize()
@@ -804,7 +841,7 @@ private struct AdvancedSettings: View {
                                     }
                                 }
                                 Spacer()
-                                Text("\(entry.client) · \(entry.date.formatted(date: .omitted, time: .standard))")
+                                Text(verbatim: "\(entry.client) · \(entry.date.formatted(date: .omitted, time: .standard))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -829,15 +866,17 @@ private struct AdvancedSettings: View {
                             Button(pending.isReady ? "Restart to Update" : "Update to \(pending.version)…",
                                    action: updates.installNow)
                                 .disabled(updates.restartWaitsForRecording)
-                                .help(updates.restartWaitsForRecording ? "Updates wait until the recording ends" : "")
+                                .help(updates.restartWaitsForRecording ? String(localized: "Updates wait until the recording ends") : "")
                         } else {
                             Button("Check Now", action: updates.checkNow).disabled(!updates.canCheck)
                         }
                     } label: {
-                        Text(updates.pending.map { "Version \($0.version) is \($0.isReady ? "ready to install" : "available")" }
-                            ?? "Digisensus Recorder is up to date")
-                        Text(updates.lastCheck.map { "Last checked \($0.formatted(date: .abbreviated, time: .shortened))" }
-                            ?? "Not checked yet")
+                        Text(updates.pending.map {
+                            $0.isReady ? String(localized: "Version \($0.version) is ready to install")
+                                : String(localized: "Version \($0.version) is available")
+                        } ?? String(localized: "Digisensus Recorder is up to date"))
+                        Text(updates.lastCheck.map { String(localized: "Last checked \($0.formatted(date: .abbreviated, time: .shortened))") }
+                            ?? String(localized: "Not checked yet"))
                     }
                 } else if AppDistribution.current == .appStore {
                     LabeledContent {
@@ -857,7 +896,7 @@ private struct AdvancedSettings: View {
             Section("Privacy") {
                 Toggle(isOn: $sharesUsageStatistics) {
                     Text("Share usage statistics")
-                    Text("When the app checks for messages, it also sends an identifier derived from this Mac, whether the app just started, the chip type, your language and which AI service you chose. It helps us count how many people use each version. Never your recordings, transcripts, notes or contacts.")
+                    Text("When the app checks for messages, it also sends an identifier derived from this Mac, whether the app just started, the Mac model and chip, your language, the app's language and which AI service you chose. It helps us count how many people use each version. Never your recordings, transcripts, notes or contacts.")
                 }
             }
 
@@ -865,8 +904,8 @@ private struct AdvancedSettings: View {
                 LabeledContent {
                     Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([Log.url]) }
                 } label: {
-                    Text("Digisensus Recorder ") + Text(AppVersion.version).foregroundColor(.secondary)
-                        + Text(" (\(AppVersion.build))").foregroundColor(.secondary)
+                    Text(verbatim: "Digisensus Recorder ") + Text(verbatim: AppVersion.version).foregroundColor(.secondary)
+                        + Text(verbatim: " (\(AppVersion.build))").foregroundColor(.secondary)
                 }
                 LabeledContent("Made by") {
                     Link("Digisensus.com", destination: URL(string: "https://digisensus.com")!)
@@ -891,10 +930,10 @@ private struct LicenseSettings: View {
     }
 
     private let packages = [
-        Package(name: "Opus (libopus)", version: "1.6.1", use: "Audio compression for recordings", license: "BSD",
+        Package(name: "Opus (libopus)", version: "1.6.1", use: String(localized: "Audio compression for recordings"), license: "BSD",
                 file: "libopus-1.6.1.txt"),
-        Package(name: "libogg", version: "1.3.6", use: "Ogg file format", license: "BSD", file: "libogg-1.3.6.txt"),
-        Package(name: "GRDB.swift", version: "7.11.1", use: "Recording library, transcripts and search",
+        Package(name: "libogg", version: "1.3.6", use: String(localized: "Ogg file format"), license: "BSD", file: "libogg-1.3.6.txt"),
+        Package(name: "GRDB.swift", version: "7.11.1", use: String(localized: "Recording library, transcripts and search"),
                 license: "MIT", file: "GRDB.swift-7.11.1.txt"),
     ] + Self.updater
 
@@ -902,7 +941,7 @@ private struct LicenseSettings: View {
     private static let updater: [Package] = []
     #else
     private static let updater = [
-        Package(name: "Sparkle", version: "2.10.0", use: "Updates the app over the air", license: "MIT",
+        Package(name: "Sparkle", version: "2.10.0", use: String(localized: "Updates the app over the air"), license: "MIT",
                 file: "Sparkle-2.10.0.txt"),
     ]
     #endif

@@ -19,10 +19,10 @@ enum TranscriptFormat: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .text: return "Plain Text"
+        case .text: return String(localized: "Plain Text")
         case .markdown: return "Markdown"
-        case .srt: return "Subtitles (SRT)"
-        case .csv: return "Spreadsheet (CSV)"
+        case .srt: return String(localized: "Subtitles (SRT)")
+        case .csv: return String(localized: "Spreadsheet (CSV)")
         case .json: return "JSON"
         }
     }
@@ -68,7 +68,7 @@ struct TranscriptExport {
     }
 
     private static func speaker(_ segment: TranscriptSegment) -> String {
-        segment.channel == .me ? "Me" : "Them"
+        segment.channel == .me ? String(localized: "Me") : String(localized: "Them")
     }
 
     private var text: String {
@@ -112,7 +112,8 @@ struct TranscriptExport {
     }
 
     private var csv: String {
-        let header = ["Time", "Speaker", "Text", "Start seconds", "End seconds"]
+        let header = [String(localized: "Time"), String(localized: "Speaker"), String(localized: "Text"),
+                      String(localized: "Start seconds"), String(localized: "End seconds")]
         let rows = segments.map { segment in
             [RecorderModel.clock(segment.startTime), Self.speaker(segment), segment.text,
              String(format: "%.2f", segment.startTime), String(format: "%.2f", segment.endTime)]

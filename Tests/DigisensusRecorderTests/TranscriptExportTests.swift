@@ -34,7 +34,7 @@ struct TranscriptExportTests {
         let object = try #require(try JSONSerialization.jsonObject(with: Data(export.render(.json).utf8)) as? [String: Any])
         #expect(object["title"] as? String == "Planning")
         #expect(object["summary"] as? String == "Meeting next week.")
-        #expect((object["transcript"] as? [[String: Any]])?.count == 2)
+        #expect((object["transcript"] as? [[String: Any]])?.map { $0["speaker"] as? String } == ["Them", "Me"])
         #expect((object["agreements"] as? [[String: Any]])?.first?["date"] as? String == "2026-11-04")
     }
 

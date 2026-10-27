@@ -12,6 +12,13 @@ cp .build/release/recorder "$APP/Contents/MacOS/recorder"
 cp Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Delete :SUPublicEDKey" "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns Resources/MenuIcon.png Resources/MenuIcon@2x.png Resources/TitleMark.png Resources/TitleMark@2x.png "$APP/Contents/Resources/"
+if xcrun --find xcstringstool >/dev/null 2>&1; then
+    for catalog in Resources/Localizable.xcstrings Resources/InfoPlist.xcstrings; do
+        xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+    done
+else
+    echo "xcstringstool comes with Xcode; building in English only" >&2
+fi
 cp -R Resources/Licenses "$APP/Contents/Resources/Licenses"
 cp NOTICE "$APP/Contents/Resources/Licenses/DigisensusRecorder-NOTICE.txt"
 cp LICENSE "$APP/Contents/Resources/Licenses/DigisensusRecorder-LICENSE.txt"

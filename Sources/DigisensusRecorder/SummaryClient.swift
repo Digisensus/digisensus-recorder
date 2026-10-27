@@ -29,12 +29,12 @@ enum SummaryError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badServerURL: return "The summary server address isn't a valid URL."
+        case .badServerURL: return String(localized: "The summary server address isn't a valid URL.")
         case .server(let code, let detail) where AIProvider.explainsRefusal(status: code): return detail
-        case .server(let code, let detail): return "The summary server answered \(code): \(detail)"
-        case .emptyAnswer: return "The summary server returned no usable text."
-        case .cutOff: return "The summary model stopped before finishing its answer."
-        case .declined: return "The model declined to summarise this call."
+        case .server(let code, let detail): return String(localized: "The summary server answered \(code): \(detail)")
+        case .emptyAnswer: return String(localized: "The summary server returned no usable text.")
+        case .cutOff: return String(localized: "The summary model stopped before finishing its answer.")
+        case .declined: return String(localized: "The model declined to summarise this call.")
         }
     }
 }
@@ -84,14 +84,14 @@ struct SummaryClient {
         timestamp of those words. Work the date out from the call date and the list \
         of days given below. Leave out anything without a definite day, like "sometime soon". Use \
         an empty list when there are none.
-        Write everything in the language the transcript is mostly in. Use only what the transcript \
-        says; if there is too little to summarise, say so in one short sentence and leave the lists empty.
+        Use only what the transcript says; if there is too little to summarise, say so in one short \
+        sentence and leave the lists empty.
         """
 
     private static let transcriptCharacterLimit = 300_000
 
-    func summarize(_ segments: [TranscriptSegment], knownTags: [String] = [],
-                   recordedAt: Date? = nil) async throws -> CallSummary {
+    func summarize(_ segments: [TranscriptSegment], knownTags: [String] = [], recordedAt: Date? = nil,
+                   languageRule: String = SummaryLanguage.rule(for: SummaryLanguage.matchesCall)) async throws -> CallSummary {
         var transcript = segments.map { segment in
             let seconds = Int(segment.startTime)
             let speaker = segment.channel == .me ? "Me" : "Them"
@@ -101,7 +101,7 @@ struct SummaryClient {
             transcript = String(transcript.prefix(Self.transcriptCharacterLimit)) + "\n[transcript cut off here]"
         }
 
-        var instructions = Self.instructions
+        var instructions = Self.instructions + "\n" + languageRule
         if !knownTags.isEmpty {
             instructions += "\nTags already in use (reuse one when it fits): \(knownTags.prefix(40).joined(separator: ", "))."
         }

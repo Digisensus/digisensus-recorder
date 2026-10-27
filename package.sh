@@ -28,6 +28,10 @@ cp Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set CFBundleShortVersionString $VERSION" -c "Set CFBundleVersion $BUILD" \
     "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns Resources/MenuIcon.png Resources/MenuIcon@2x.png Resources/TitleMark.png Resources/TitleMark@2x.png "$APP/Contents/Resources/"
+xcrun --find xcstringstool >/dev/null 2>&1 || { echo "Packaging needs Xcode for xcstringstool (translations)" >&2; exit 1; }
+for catalog in Resources/Localizable.xcstrings Resources/InfoPlist.xcstrings; do
+    xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+done
 cp -R Resources/Licenses "$APP/Contents/Resources/Licenses"
 cp NOTICE "$APP/Contents/Resources/Licenses/DigisensusRecorder-NOTICE.txt"
 cp LICENSE "$APP/Contents/Resources/Licenses/DigisensusRecorder-LICENSE.txt"

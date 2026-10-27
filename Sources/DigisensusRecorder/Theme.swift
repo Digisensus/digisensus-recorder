@@ -211,7 +211,7 @@ struct CreditSymbol: View {
     var weight: Font.Weight = .semibold
 
     var body: some View {
-        Text("D")
+        Text(verbatim: "D")
             .font(.system(size: size, weight: weight))
             .overlay {
                 GeometryReader { proxy in
@@ -225,7 +225,7 @@ struct CreditSymbol: View {
                     }
                 }
             }
-            .accessibilityLabel("D")
+            .accessibilityLabel(Text(verbatim: "D"))
     }
 }
 
@@ -297,18 +297,18 @@ struct FlowLayout: Layout {
 enum DayText {
     static func title(_ date: Date) -> String {
         let calendar = Calendar.current
-        let name = calendar.isDateInToday(date) ? "Today"
-            : calendar.isDateInYesterday(date) ? "Yesterday"
-            : date.formatted(.dateTime.weekday(.wide))
         let sameYear = calendar.isDate(date, equalTo: Date(), toGranularity: .year)
-        return name + ", " + date.formatted(sameYear ? .dateTime.day().month(.wide) : .dateTime.day().month(.wide).year())
+        let day = date.formatted(sameYear ? .dateTime.day().month(.wide) : .dateTime.day().month(.wide).year())
+        if calendar.isDateInToday(date) { return String(localized: "Today, \(day)") }
+        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday, \(day)") }
+        return date.formatted(sameYear ? .dateTime.weekday(.wide).day().month(.wide) : .dateTime.weekday(.wide).day().month(.wide).year())
     }
 
     static func short(_ date: Date) -> String {
         let calendar = Calendar.current
         let time = date.formatted(date: .omitted, time: .shortened)
-        if calendar.isDateInToday(date) { return "Today, \(time)" }
-        if calendar.isDateInYesterday(date) { return "Yesterday, \(time)" }
-        return date.formatted(.dateTime.day().month(.abbreviated)) + ", \(time)"
+        if calendar.isDateInToday(date) { return String(localized: "Today, \(time)") }
+        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday, \(time)") }
+        return date.formatted(.dateTime.day().month(.abbreviated).hour().minute())
     }
 }

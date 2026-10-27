@@ -67,7 +67,7 @@ final class AgentAccess: ObservableObject {
                 try server.start()
                 self.server = server
             } catch {
-                serverFailure = "Couldn't open the agent socket: \(error.localizedDescription)"
+                serverFailure = String(localized: "Couldn't open the agent socket: \(error.localizedDescription)")
                 Log.write("agent socket failed: \(error)")
             }
         } else if !isEnabled, let server {

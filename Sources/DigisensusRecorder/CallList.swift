@@ -77,7 +77,7 @@ struct CallList: View {
                         ForEach(rows) { row in
                             switch row {
                             case .header(let day):
-                                Text(DayText.title(day).uppercased())
+                                Text(DayText.title(day)).textCase(.uppercase)
                                     .font(.system(size: 11, weight: .semibold))
                                     .tracking(0.4)
                                     .foregroundStyle(Palette.tertiary)
@@ -130,29 +130,30 @@ struct CallList: View {
     }
 
     private func title(calls: [Recording]) -> String {
-        if isSearching { return "Results" }
+        if isSearching { return String(localized: "Results") }
         if library.listMode == .day { return DayText.title(library.selectedDay) }
-        return library.isFiltering ? "Filtered calls" : "All calls"
+        return library.isFiltering ? String(localized: "Filtered calls") : String(localized: "All calls")
     }
 
     private func subtitle(calls: [Recording]) -> String {
         guard !calls.isEmpty else {
-            if library.listMode == .day, library.selectedDay > Date(), !isSearching { return "Upcoming" }
-            return "No calls"
+            if library.listMode == .day, library.selectedDay > Date(), !isSearching { return String(localized: "Upcoming") }
+            return String(localized: "No calls")
         }
         let seconds = calls.reduce(0.0) { $0 + ($1.duration ?? 0) }
-        return "\(calls.count) call\(calls.count == 1 ? "" : "s") · \(Recording.minutesText(seconds))"
-            + (library.isFiltering ? " · filtered" : "")
+        let parts = [String(localized: "\(calls.count) calls"), Recording.minutesText(seconds)]
+            + (library.isFiltering ? [String(localized: "filtered")] : [])
+        return parts.joined(separator: " · ")
     }
 
-    private var emptyTitle: String {
+    private var emptyTitle: LocalizedStringResource {
         if isSearching { return "Nothing found" }
         if library.isFiltering { return "No calls match these filters" }
         if library.listMode == .all { return "No calls yet" }
         return library.selectedDay > Date() ? "This day hasn’t happened yet" : "No calls on this day"
     }
 
-    private var emptyDetail: String {
+    private var emptyDetail: LocalizedStringResource {
         if isSearching { return "Try other words, or clear the filters." }
         if library.isFiltering { return "Clear the filters or pick another day." }
         if library.listMode == .all { return "Calls you record show up here." }
@@ -222,7 +223,7 @@ struct CallRow: View {
                         .font(.system(size: 14, weight: .bold))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("\(when) · \(recording.durationShort)")
+                    Text(verbatim: "\(when) · \(recording.durationShort)")
                         .font(.system(size: 12))
                         .monospacedDigit()
                         .foregroundStyle(Palette.tertiary)
@@ -365,8 +366,8 @@ struct PulsingDot: View {
 }
 
 private struct EmptyList: View {
-    let title: String
-    let detail: String
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
 
     var body: some View {
         VStack(spacing: 10) {
@@ -409,7 +410,7 @@ struct RecordingMenu: View {
             .disabled(recording.transcriptStatus != .done)
         Menu("Export Transcript") {
             ForEach(TranscriptFormat.allCases) { format in
-                Button(format.title + "…") { library.exportTranscript(of: recording, as: format) }
+                Button("\(format.title)…") { library.exportTranscript(of: recording, as: format) }
             }
         }
         .disabled(recording.transcriptStatus != .done)

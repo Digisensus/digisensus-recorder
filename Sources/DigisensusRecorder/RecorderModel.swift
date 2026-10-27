@@ -57,7 +57,7 @@ final class RecorderModel: ObservableObject {
                 if launchAtLogin { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             } catch {
                 Log.write("launch at login failed: \(error)")
-                message = "Couldn't change the login item: \(error.localizedDescription)"
+                message = String(localized: "Couldn't change the login item: \(error.localizedDescription)")
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }
         }
@@ -84,8 +84,7 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var lastFile: URL?
     @Published private(set) var lastSaved: URL?
     @Published private(set) var lastDiscarded: String?
-    private static let systemAudioDenied = "Allow Digisensus Recorder under System Settings › Privacy & Security › "
-        + "Screen & System Audio Recording › System Audio Recording Only, then record again."
+    private static let systemAudioDenied = String(localized: "Allow Digisensus Recorder under System Settings › Privacy & Security › Screen & System Audio Recording › System Audio Recording Only, then record again.")
     private static let minimumSpeech = (me: 1.0, them: 2.0)
     var recordingName: String? { (pendingEncode?.final ?? lastFile)?.lastPathComponent }
     @Published var message: String?
@@ -133,19 +132,17 @@ final class RecorderModel: ObservableObject {
         engine.onFailure = { [weak self] error in
             MainActor.assumeIsolated {
                 guard let self, self.isRecording else { return }
-                self.message = "Recording stopped: \(error.localizedDescription)"
+                self.message = String(localized: "Recording stopped: \(error.localizedDescription)")
                 Task { await self.stop() }
             }
         }
         refreshDevices()
         _ = library
         if movedFromDirectDownload {
-            message = "Your calls and settings came across from the direct download. "
-                + "Sign in again, or re-enter your API keys, in Settings › Transcription & AI."
+            message = String(localized: "Your calls and settings came across from the direct download. Sign in again, or re-enter your API keys, in Settings › Transcription & AI.")
         }
         if AppDatabase.shared.isTemporary {
-            message = "The library couldn't be opened, so titles, transcripts and summaries made now won't be kept. "
-                + "Recordings are still saved. Quit and reopen Digisensus Recorder to try again."
+            message = String(localized: "The library couldn't be opened, so titles, transcripts and summaries made now won't be kept. Recordings are still saved. Quit and reopen Digisensus Recorder to try again.")
         }
         recoverCaptures()
 
@@ -182,7 +179,7 @@ final class RecorderModel: ObservableObject {
         let chime = TonePlayer()
         do { try chime?.start() } catch {
             Log.write("audio test: no output (\(error))")
-            audioTest = .failed("The speakers couldn't be started.")
+            audioTest = .failed(String(localized: "The speakers couldn't be started."))
             return
         }
         defer { chime?.stop() }
@@ -206,11 +203,11 @@ final class RecorderModel: ObservableObject {
     }
 
     var micName: String {
-        mics.first { $0.id == micID }?.name ?? "System default"
+        mics.first { $0.id == micID }?.name ?? String(localized: "System default")
     }
 
     var sourceName: String {
-        apps.first { $0.source == source }?.name ?? "All apps"
+        apps.first { $0.source == source }?.name ?? String(localized: "All apps")
     }
 
     func refreshDevices() {
@@ -222,19 +219,19 @@ final class RecorderModel: ObservableObject {
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         if !choices.contains(where: { $0.source == .application(bundleID: Self.chromeBundleID) }) {
-            choices.insert(AppChoice(name: "Google Chrome (not running)",
+            choices.insert(AppChoice(name: String(localized: "Google Chrome (not running)"),
                                      source: .application(bundleID: Self.chromeBundleID)), at: 0)
         }
         if case .application(let id) = source, !choices.contains(where: { $0.source == source }) {
-            choices.insert(AppChoice(name: "\(id) (not running)", source: source), at: 0)
+            choices.insert(AppChoice(name: String(localized: "\(id) (not running)"), source: source), at: 0)
         }
-        choices.append(AppChoice(name: "Phone & FaceTime calls", source: .calls))
-        choices.append(AppChoice(name: "All apps", source: .systemAudio))
+        choices.append(AppChoice(name: String(localized: "Phone & FaceTime calls"), source: .calls))
+        choices.append(AppChoice(name: String(localized: "All apps"), source: .systemAudio))
         apps = choices
 
         let devices = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified).devices
-        mics = [MicChoice(name: "System default", deviceID: nil)]
+        mics = [MicChoice(name: String(localized: "System default"), deviceID: nil)]
             + devices.map { MicChoice(name: $0.localizedName, deviceID: $0.uniqueID) }
         if !mics.contains(where: { $0.id == micID }) { micID = "" }
     }
@@ -262,7 +259,10 @@ final class RecorderModel: ObservableObject {
             if !isRecording, !isBusy, !autoSuppressed, callStreak >= 3 {
                 Task { await start(detected: call) }
             }
-            if !isRecording { autoStatus = autoSuppressed ? "\(call.label) call – not recording" : "\(call.label) call detected…" }
+            if !isRecording {
+                autoStatus = autoSuppressed
+                    ? String(localized: "\(call.label) call – not recording") : String(localized: "\(call.label) call detected…")
+            }
         } else {
             callStreak = 0
             let callEnded = Date().timeIntervalSince(lastCallSeen ?? .distantPast) > Self.callEndGrace
@@ -270,7 +270,7 @@ final class RecorderModel: ObservableObject {
             if isRecording, autoStarted, !isBusy, callEnded {
                 Task { await stop() }
             }
-            if !isRecording { autoStatus = "Waiting for a call…" }
+            if !isRecording { autoStatus = String(localized: "Waiting for a call…") }
         }
     }
 
@@ -285,7 +285,7 @@ final class RecorderModel: ObservableObject {
     func startForAgent(client: String, source: AudioSource?) async -> Bool {
         await start(using: source)
         if isRecording {
-            notify("Recording started by an AI agent", "“\(client)” started this recording.")
+            notify(String(localized: "Recording started by an AI agent"), String(localized: "“\(client)” started this recording."))
         }
         return isRecording
     }
@@ -302,7 +302,7 @@ final class RecorderModel: ObservableObject {
         let source = override ?? source
 
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
-            message = "Microphone access denied. Enable Digisensus Recorder in System Settings › Privacy & Security › Microphone."
+            message = String(localized: "Microphone access denied. Enable Digisensus Recorder in System Settings › Privacy & Security › Microphone.")
             return
         }
         if await SystemAudioAccess.check() == .denied {
@@ -331,7 +331,7 @@ final class RecorderModel: ObservableObject {
             currentCall = detected
             autoStarted = detected != nil
             if let detected {
-                autoStatus = "Auto-recording \(detected.label) call"
+                autoStatus = String(localized: "Auto-recording \(detected.label) call")
             }
             startedAt = Date()
             elapsed = 0
@@ -381,7 +381,7 @@ final class RecorderModel: ObservableObject {
             if let lastFile { try? FileManager.default.removeItem(at: lastFile) }
             pendingEncode = nil
             lastFile = nil
-            lastDiscarded = label
+            lastDiscarded = Recording.channelName(for: currentCall?.label)
             return
         }
 
@@ -392,7 +392,7 @@ final class RecorderModel: ObservableObject {
         RecordingFile.keepNotes(notes, for: pending.final)
         let id = library.registerProcessing(file: pending.final, startedAt: began, duration: duration,
                                             call: currentCall, notes: notes.isEmpty ? nil : notes)
-        message = "Compressing…"
+        message = String(localized: "Compressing…")
         let encoded = await Task.detached { Self.finishEncode(pending) || Self.finishEncode(pending) }.value
         if encoded {
             try? FileManager.default.removeItem(at: RecordingFile.notesURL(for: pending.final))
@@ -403,7 +403,7 @@ final class RecorderModel: ObservableObject {
         } else {
             if let id { library.abandonProcessing(id) }
             lastFile = nil
-            message = "Couldn't compress this recording. It's kept and will be saved when Digisensus Recorder next starts."
+            message = String(localized: "Couldn't compress this recording. It's kept and will be saved when Digisensus Recorder next starts.")
         }
     }
 

@@ -8,7 +8,7 @@ enum ProcessTapError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .coreAudio(let step, let status):
-            return "Core Audio failed to \(step) (error \(status))."
+            return String(localized: "The other side's audio couldn't be captured (Core Audio: \(step), error \(status)).")
         }
     }
 }

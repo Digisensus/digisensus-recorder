@@ -10,10 +10,10 @@ final class Permissions: ObservableObject {
 
         var name: String {
             switch self {
-            case .microphone: return "Microphone"
-            case .systemAudio: return "System audio"
-            case .notifications: return "Notifications"
-            case .meetingNames: return "Meeting names"
+            case .microphone: return String(localized: "Microphone")
+            case .systemAudio: return String(localized: "System audio")
+            case .notifications: return String(localized: "Notifications")
+            case .meetingNames: return String(localized: "Meeting names")
             }
         }
 
@@ -36,8 +36,7 @@ final class Permissions: ObservableObject {
     @Published private(set) var meetingNames = false
     @Published private(set) var meetingNamesRefused = false
 
-    static let systemAudioHint = "Already on in System Settings? It may belong to another copy of Digisensus Recorder. "
-        + "Select Digisensus Recorder there, remove it with the − button, then allow it again."
+    static let systemAudioHint: LocalizedStringResource = "Already on in System Settings? It may belong to another copy of Digisensus Recorder. Select Digisensus Recorder there, remove it with the − button, then allow it again."
 
     private var observers: [NSObjectProtocol] = []
     private var poll: Timer?

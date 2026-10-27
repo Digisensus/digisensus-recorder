@@ -5,6 +5,16 @@ struct ArchiveCalendar: View {
 
     private var calendar: Calendar { Calendar.current }
 
+    private var monthTitle: AttributedString {
+        var title = library.calendarMonth.formatted(.dateTime.month(.wide).year().attributedStyle)
+        title.font = .system(size: 14, weight: .bold)
+        for run in title.runs where run.foundation.dateField == .year {
+            title[run.range].font = .system(size: 14)
+            title[run.range].foregroundColor = Palette.tertiary
+        }
+        return title
+    }
+
     private var counts: [Date: Int] {
         library.filteredRecordings.reduce(into: [:]) { $0[calendar.startOfDay(for: $1.startedAt), default: 0] += 1 }
     }
@@ -31,8 +41,7 @@ struct ArchiveCalendar: View {
         let cells = cells
         VStack(spacing: 4) {
             HStack(spacing: 4) {
-                (Text(library.calendarMonth.formatted(.dateTime.month(.wide))).fontWeight(.bold)
-                    + Text(" " + library.calendarMonth.formatted(.dateTime.year())).foregroundColor(Palette.tertiary))
+                Text(monthTitle)
                     .font(.system(size: 14))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 monthButton("chevron.left", label: "Previous month") { library.shiftMonth(by: -1) }
@@ -75,7 +84,7 @@ struct ArchiveCalendar: View {
         }
     }
 
-    private func monthButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+    private func monthButton(_ symbol: String, label: LocalizedStringResource, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
@@ -133,8 +142,8 @@ private struct DayCell: View {
         }
         .buttonStyle(.plain)
         .disabled(!inMonth)
-        .accessibilityLabel(day.formatted(.dateTime.day().month(.wide))
-            + ", " + (count == 0 ? "no calls" : "\(count) call\(count == 1 ? "" : "s")"))
+        .accessibilityLabel(day.formatted(.dateTime.day().month(.wide)) + ", "
+            + (count == 0 ? String(localized: "no calls") : String(localized: "\(count) calls")))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

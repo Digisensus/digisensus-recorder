@@ -13,9 +13,12 @@ final class OnboardingFlow: ObservableObject {
         var isComplete: Bool { preset != .other || !trimmedServer.isEmpty }
     }
 
-    static let doneKey = "onboardingDone"
+    nonisolated static let doneKey = "onboardingDone"
     static let onceMoreKey = "showIntroOnNextStart"
-    static let stepCount = 5
+    static let stepCount = 6
+    private static let languageChosenKey = "onboardingLanguageChosen"
+
+    static var resumesAfterLanguageChoice: Bool { UserDefaults.standard.bool(forKey: languageChosenKey) }
 
     @Published var step = 0
     @Published var aiChoice = AIChoice.account
@@ -26,6 +29,25 @@ final class OnboardingFlow: ObservableObject {
     let signIn = SignInForm()
 
     var finish: () -> Void = {}
+
+    init() {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: Self.languageChosenKey) {
+            defaults.removeObject(forKey: Self.languageChosenKey)
+            step = 1
+        }
+    }
+
+    func chooseLanguage(_ code: String) {
+        LanguageOffer.markMade()
+        guard code != AppLanguage.inUse else {
+            step = 1
+            return
+        }
+        AppLanguage.apply(code)
+        UserDefaults.standard.set(true, forKey: Self.languageChosenKey)
+        AppLanguage.relaunch()
+    }
 
     var summaryUsesTranscriptionKey: Bool {
         summaryService.preset == transcriptionService.preset && summaryService.preset.server != nil
@@ -70,18 +92,21 @@ struct OnboardingView: View {
             Color.clear.frame(height: 40)
             Group {
                 switch flow.step {
-                case 0: WelcomeStep()
-                case 1: HowItWorksStep()
-                case 2: PermissionsStep(model: model, permissions: permissions)
-                case 3: AISetupStep(flow: flow, library: model.library, account: model.library.account, form: flow.signIn)
+                case 0: LanguageStep(flow: flow)
+                case 1: WelcomeStep()
+                case 2: HowItWorksStep()
+                case 3: PermissionsStep(model: model, permissions: permissions)
+                case 4: AISetupStep(flow: flow, library: model.library, account: model.library.account, form: flow.signIn)
                 default: ReadyStep(flow: flow)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            Divider()
-            footer
-                .frame(height: 76)
-                .padding(.horizontal, 32)
+            if flow.step > 0 {
+                Divider()
+                footer
+                    .frame(height: 76)
+                    .padding(.horizontal, 32)
+            }
         }
         .frame(width: 760, height: 540)
         .background(Palette.canvas)
@@ -107,18 +132,18 @@ struct OnboardingView: View {
             }
             .accessibilityElement()
             .accessibilityLabel("Step \(flow.step + 1) of \(OnboardingFlow.stepCount)")
-            if flow.step == 0 {
+            if flow.step == 1 {
                 Text("Takes about a minute").font(.system(size: 13)).foregroundStyle(Palette.tertiary)
             }
             Spacer()
-            if flow.step == 2 {
+            if flow.step == 3 {
                 Text(permissionsHint).font(.system(size: 13)).foregroundStyle(Palette.tertiary)
             }
             primaryButton
         }
     }
 
-    private var permissionsHint: String {
+    private var permissionsHint: LocalizedStringResource {
         guard permissions.requiredGranted else { return "You can also allow these later" }
         if case .done(true, true) = model.audioTest { return "All set" }
         return "Test recording to be sure"
@@ -126,8 +151,8 @@ struct OnboardingView: View {
 
     @ViewBuilder private var primaryButton: some View {
         switch flow.step {
-        case 0:
-            Button { flow.step = 1 } label: {
+        case 1:
+            Button { flow.step = 2 } label: {
                 HStack(spacing: 8) {
                     Text("Get Started")
                     Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
@@ -135,11 +160,11 @@ struct OnboardingView: View {
             }
             .buttonStyle(StrongButtonStyle())
             .keyboardShortcut(.defaultAction)
-        case 2:
+        case 3:
             Button("Continue") { flow.step += 1 }
                 .buttonStyle(StrongButtonStyle(fill: permissions.requiredGranted ? Palette.strong : Palette.tertiary))
                 .keyboardShortcut(.defaultAction)
-        case 3:
+        case 4:
             Button(flow.aiChoice == .skip ? "Skip for Now" : "Continue") { flow.step += 1 }
                 .buttonStyle(StrongButtonStyle())
         case OnboardingFlow.stepCount - 1:
@@ -151,6 +176,94 @@ struct OnboardingView: View {
                 .buttonStyle(StrongButtonStyle())
                 .keyboardShortcut(.defaultAction)
         }
+    }
+}
+
+private struct LanguageStep: View {
+    @ObservedObject var flow: OnboardingFlow
+
+    var body: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundStyle(Palette.accent)
+                Text("Choose your language").font(.system(size: 28, weight: .bold)).tracking(-0.5)
+            }
+            LanguageGrid(choose: flow.chooseLanguage)
+        }
+        .padding(.top, 16)
+        .padding(.horizontal, 48)
+    }
+}
+
+struct LanguageGrid: View {
+    var choose: (String) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(122), spacing: 10), count: 5), spacing: 10) {
+            ForEach(AppLanguage.byNativeName, id: \.self) { code in
+                let current = code == AppLanguage.inUse
+                Button { choose(code) } label: {
+                    Text(AppLanguage.nativeName(code))
+                        .font(.system(size: 13, weight: current ? .semibold : .regular))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(current ? Palette.accentTint : Palette.card, in: RoundedRectangle(cornerRadius: 9))
+                        .overlay(RoundedRectangle(cornerRadius: 9)
+                            .strokeBorder(current ? Palette.accent : Palette.border, lineWidth: current ? 1.5 : 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 9))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(current ? .isSelected : [])
+            }
+        }
+    }
+}
+
+struct LanguageOfferSheet: View {
+    @ObservedObject var model: RecorderModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 26) {
+            VStack(spacing: 10) {
+                Image(systemName: "globe")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(Palette.accent)
+                Text("Digisensus Recorder now speaks your language")
+                    .font(.system(size: 22, weight: .bold)).tracking(-0.4)
+                    .multilineTextAlignment(.center)
+                Text(note)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: 650)
+            LanguageGrid(choose: choose)
+                .disabled(model.isRecording)
+                .opacity(model.isRecording ? 0.5 : 1)
+            Button("Keep \(AppLanguage.nativeName(AppLanguage.inUse))") { dismiss() }
+                .buttonStyle(StrongButtonStyle())
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(.vertical, 36)
+        .padding(.horizontal, 48)
+        .presentationBackground(Palette.canvas)
+        .onExitCommand { dismiss() }
+    }
+
+    private var note: LocalizedStringResource {
+        if model.isRecording { return "You can switch when the recording ends." }
+        return "Choose a language for the app. You can change it later in Settings › General."
+    }
+
+    private func choose(_ code: String) {
+        guard code != AppLanguage.inUse else { return dismiss() }
+        AppLanguage.apply(code)
+        AppLanguage.relaunch()
     }
 }
 
@@ -253,8 +366,8 @@ private struct Feature: View {
     let symbol: String
     let ink: Color
     let tint: Color
-    let title: String
-    let detail: String
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -316,8 +429,8 @@ private struct PermissionsStep: View {
         .padding(.horizontal, 48)
     }
 
-    private func row(_ kind: Permissions.Kind, symbol: String, ink: Color, tint: Color, title: String, tag: String,
-                     detail: String, action: String) -> some View {
+    private func row(_ kind: Permissions.Kind, symbol: String, ink: Color, tint: Color, title: LocalizedStringResource,
+                     tag: LocalizedStringResource, detail: LocalizedStringResource, action: LocalizedStringResource) -> some View {
         HStack(spacing: 14) {
             Image(systemName: symbol)
                 .font(.system(size: 16))
@@ -325,8 +438,8 @@ private struct PermissionsStep: View {
                 .frame(width: 34, height: 34)
                 .background(tint, in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 2) {
-                (Text(title).fontWeight(.semibold) + Text(" · \(tag)").font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Palette.tertiary))
+                (Text(title).fontWeight(.semibold) + Text(verbatim: " · ").font(.system(size: 12, weight: .medium))
+                    + Text(tag).font(.system(size: 12, weight: .medium)).foregroundColor(Palette.tertiary))
                     .font(.system(size: 14))
                 Text(kind == .systemAudio && permissions.systemAudioRefused ? Permissions.systemAudioHint : detail)
                     .font(.system(size: 12))
@@ -410,12 +523,12 @@ private struct PermissionsStep: View {
 
     private func status(me: Bool) -> String {
         switch model.audioTest {
-        case .idle: return me ? "Say something" : "Plays a short chime"
-        case .running: return "Listening…"
+        case .idle: return me ? String(localized: "Say something") : String(localized: "Plays a short chime")
+        case .running: return String(localized: "Listening…")
         case .failed(let message): return message
         case .done(let heardMe, let heardThem):
-            if me { return heardMe ? "Heard you" : "No sound, allow Microphone" }
-            return heardThem ? "Heard system audio" : "No sound, allow System Audio"
+            if me { return heardMe ? String(localized: "Heard you") : String(localized: "No sound, allow Microphone") }
+            return heardThem ? String(localized: "Heard system audio") : String(localized: "No sound, allow System Audio")
         }
     }
 
@@ -447,7 +560,7 @@ private struct AISetupStep: View {
                        tag: "RECOMMENDED", tagInk: Palette.you)
                 option(.own, title: AIService.own.label, detail: "A server on this Mac, or a cloud API with your key.",
                        tag: "FOR ADVANCED USERS", tagInk: Palette.tertiary)
-                option(.skip, title: "Not now", detail: "Just record. Everything stays on this Mac.",
+                option(.skip, title: String(localized: "Not now"), detail: "Just record. Everything stays on this Mac.",
                        tag: "NO AI", tagInk: Palette.tertiary)
             }
             Group {
@@ -466,8 +579,8 @@ private struct AISetupStep: View {
         .padding(.horizontal, 56)
     }
 
-    private func option(_ choice: OnboardingFlow.AIChoice, title: String, detail: String, tag: String,
-                        tagInk: Color) -> some View {
+    private func option(_ choice: OnboardingFlow.AIChoice, title: String, detail: LocalizedStringResource,
+                        tag: LocalizedStringResource, tagInk: Color) -> some View {
         let selected = flow.aiChoice == choice
         return Button {
             flow.aiChoice = choice
@@ -519,7 +632,7 @@ private struct AISetupStep: View {
                 ProgressView().controlSize(.small)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Check your inbox at \(email)").font(.system(size: 14, weight: .semibold))
-                    Text("Open the link on any device and press Confirm. The app signs in by itself; you can continue meanwhile.")
+                    Text("Open the link on any device and confirm your email address. The app signs in by itself; you can continue meanwhile.")
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -551,16 +664,12 @@ private struct AISetupStep: View {
                         .disabled(!form.emailLooksValid || !form.acceptedTerms || account.state == .sending)
                 }
                 Toggle(isOn: $form.acceptedTerms) {
-                    Text(LocalizedStringKey("I accept the [Terms of Service](\(DigisensusAccount.termsURL.absoluteString))"
-                        + (form.hasInviteCode
-                           ? " and the [Referral Program Terms](\((account.referralTermsURL ?? DigisensusAccount.defaultReferralTermsURL).absoluteString))"
-                           : "")
-                        + "."))
+                    Text(LocalizedStringKey(termsAcceptance))
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.secondary)
                 }
                 .toggleStyle(.checkbox)
-                Text(account.message ?? "No password. Open the link on any device and the app signs in by itself.")
+                Text(account.message ?? String(localized: "No password. Open the link on any device and the app signs in by itself."))
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.tertiary)
             }
@@ -598,20 +707,28 @@ private struct AISetupStep: View {
         }
     }
 
+    private var termsAcceptance: String {
+        let terms = DigisensusAccount.termsURL.absoluteString
+        guard form.hasInviteCode else { return String(format: String(localized: "I accept the [Terms of Service](%@)."), terms) }
+        let referral = (account.referralTermsURL ?? DigisensusAccount.defaultReferralTermsURL).absoluteString
+        return String(format: String(localized: "I accept the [Terms of Service](%1$@) and the [Referral Program Terms](%2$@)."),
+                      terms, referral)
+    }
+
     private var connectionStatus: String {
         switch (library.connectionStatus, library.summaryConnectionStatus) {
         case (nil, nil):
-            return "Other server takes any OpenAI-compatible API. Models and language can be changed later in Settings."
+            return String(localized: "Other server takes any OpenAI-compatible API. Models and language can be changed later in Settings.")
         case let (transcription, summary):
-            return "Transcription: \(transcription ?? "…")  Summaries: \(summary ?? "…")"
+            return String(localized: "Transcription: \(transcription ?? "…")  Summaries: \(summary ?? "…")")
         }
     }
 
-    private func columnTitle(_ title: String) -> some View {
+    private func columnTitle(_ title: LocalizedStringResource) -> some View {
         Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
     }
 
-    private func serviceRow(_ purpose: AIPurpose, title: String, detail: String,
+    private func serviceRow(_ purpose: AIPurpose, title: LocalizedStringResource, detail: LocalizedStringResource,
                             draft: Binding<OnboardingFlow.ServiceDraft>) -> some View {
         let preset = draft.wrappedValue.preset
         return GridRow {
@@ -737,7 +854,7 @@ private struct ReadyStep: View {
         .padding(.top, 4)
     }
 
-    private func legend(dot: Color?, period: Double, title: String, detail: String) -> some View {
+    private func legend(dot: Color?, period: Double, title: LocalizedStringResource, detail: LocalizedStringResource) -> some View {
         HStack(spacing: 12) {
             MenuBarGlyph(dot: dot, period: period)
                 .frame(width: 36, height: 30)

@@ -3,9 +3,9 @@ import SwiftUI
 
 @MainActor
 final class PlayerModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
-    enum ChannelMode: String, CaseIterable, Identifiable {
-        case both = "Both", them = "Them", me = "Me"
-        var id: String { rawValue }
+    enum ChannelMode: CaseIterable, Identifiable {
+        case both, them, me
+        var id: Self { self }
         var pan: Float { self == .both ? 0 : self == .them ? -1 : 1 }
     }
 
@@ -40,7 +40,7 @@ final class PlayerModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func load(_ url: URL) {
         unload()
         guard FileManager.default.fileExists(atPath: url.path) else {
-            failure = "The audio file is missing."
+            failure = String(localized: "The audio file is missing.")
             return
         }
         isPreparing = true
@@ -52,7 +52,7 @@ final class PlayerModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             }
             guard let playable, let player = try? AVAudioPlayer(contentsOf: playable) else {
                 self.isPreparing = false
-                self.failure = "This file can't be played."
+                self.failure = String(localized: "This file can't be played.")
                 return
             }
             self.decodedCopy = playable == url ? nil : playable

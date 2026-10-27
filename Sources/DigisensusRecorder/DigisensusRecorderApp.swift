@@ -84,10 +84,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let onceMore = UserDefaults.standard.bool(forKey: OnboardingFlow.onceMoreKey)
         if onceMore { UserDefaults.standard.removeObject(forKey: OnboardingFlow.onceMoreKey) }
-        if onceMore || environment["DSREC_ONBOARDING"] != nil || !UserDefaults.standard.bool(forKey: OnboardingFlow.doneKey) {
+        if onceMore || OnboardingFlow.resumesAfterLanguageChoice || environment["DSREC_ONBOARDING"] != nil
+            || !UserDefaults.standard.bool(forKey: OnboardingFlow.doneKey) {
             showOnboarding()
-        } else if !Self.launchedAtLogin, snapshotFolder == nil {
-            openMainWindow()
+        } else if snapshotFolder == nil {
+            navigation.offeringLanguage = LanguageOffer.isDue()
+            if !Self.launchedAtLogin { openMainWindow() }
         }
 
         model.$isRecording.combineLatest(model.$autoRecord)
@@ -100,23 +102,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] file in self?.showSavedBanner(file) }
             .store(in: &observers)
         model.$lastDiscarded.compactMap { $0 }
-            .sink { [weak self] label in
-                self?.banner.show(.init(symbol: "phone.down.circle.fill", tint: .secondary, title: "\(label) call not answered",
-                                        detail: "Nobody spoke, so nothing was kept."), for: 6)
+            .sink { [weak self] call in
+                self?.banner.show(.init(symbol: "phone.down.circle.fill", tint: .secondary, title: String(localized: "\(call) not answered"),
+                                        detail: String(localized: "Nobody spoke, so nothing was kept.")), for: 6)
             }
             .store(in: &observers)
     }
 
     private func showStartedBanner() {
         let model = model
-        banner.show(.init(symbol: "record.circle.fill", tint: .red, title: "Recording started",
+        banner.show(.init(symbol: "record.circle.fill", tint: .red, title: String(localized: "Recording started"),
                           detail: model.recordingName ?? "",
-                          button: "Stop", action: { if model.isRecording { model.toggle() } }), for: 6)
+                          button: String(localized: "Stop"), action: { if model.isRecording { model.toggle() } }), for: 6)
     }
 
     private func showSavedBanner(_ file: URL) {
-        banner.show(.init(symbol: "checkmark.circle.fill", tint: .green, title: "Recording saved",
-                          detail: file.lastPathComponent, button: "View", action: { [weak self] in
+        banner.show(.init(symbol: "checkmark.circle.fill", tint: .green, title: String(localized: "Recording saved"),
+                          detail: file.lastPathComponent, button: String(localized: "View"), action: { [weak self] in
             guard let self else { return }
             let library = model.library
             if let id = library.recordings.first(where: { $0.fileName == file.lastPathComponent })?.id
@@ -130,8 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMessageBanner(_ message: BroadcastMessage) {
         banner.show(.init(symbol: "megaphone.fill", tint: .blue, title: message.title,
-                          detail: message.summary.isEmpty ? "A message from Digisensus" : message.summary,
-                          button: "Open", action: { [weak self] in self?.openMessages(message.id) }), for: 12)
+                          detail: message.summary.isEmpty ? String(localized: "A message from Digisensus") : message.summary,
+                          button: String(localized: "Open"), action: { [weak self] in self?.openMessages(message.id) }), for: 12)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -181,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if messagesWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: MessagesView(center: messages)))
-            window.title = "Messages"
+            window.title = String(localized: "Messages")
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.setContentSize(NSSize(width: 900, height: 620))
             window.collectionBehavior = Self.ownSpace
@@ -208,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.title = "Welcome to Digisensus Recorder"
+        window.title = String(localized: "Welcome to Digisensus Recorder")
         window.isMovableByWindowBackground = true
         window.collectionBehavior = Self.ownSpace
         window.isReleasedWhenClosed = false
@@ -258,24 +260,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             popover.performClose(nil)
             let menu = NSMenu()
-            menu.addItem(withTitle: "Open Digisensus Recorder", action: #selector(openFromMenu), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Open Digisensus Recorder"), action: #selector(openFromMenu), keyEquivalent: "").target = self
             if !messages.messages.isEmpty {
                 let unread = messages.unreadCount
-                menu.addItem(withTitle: unread > 0 ? "Messages (\(unread) new)" : "Messages",
+                menu.addItem(withTitle: unread > 0 ? String(localized: "Messages (\(unread) new)") : String(localized: "Messages"),
                              action: #selector(messagesFromMenu), keyEquivalent: "").target = self
             }
             if updates.isEnabled || AppDistribution.current == .appStore {
-                let title = updates.pending?.isReady == true ? "Restart to Update"
-                    : AppDistribution.current == .appStore ? "Updates in the App Store…" : "Check for Updates…"
+                let title = updates.pending?.isReady == true ? String(localized: "Restart to Update")
+                    : AppDistribution.current == .appStore ? String(localized: "Updates in the App Store…")
+                    : String(localized: "Check for Updates…")
                 let item = menu.addItem(withTitle: title, action: #selector(updateFromMenu), keyEquivalent: "")
                 item.target = self
                 if updates.restartWaitsForRecording {
                     item.action = nil
-                    item.toolTip = "Updates wait until the recording ends"
+                    item.toolTip = String(localized: "Updates wait until the recording ends")
                 }
             }
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Quit Digisensus Recorder", action: #selector(NSApplication.terminate(_:)),
+            menu.addItem(withTitle: String(localized: "Quit Digisensus Recorder"), action: #selector(NSApplication.terminate(_:)),
                          keyEquivalent: "q")
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.isFlipped ? button.bounds.maxY + 4 : -4), in: button)
             return
@@ -298,15 +301,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = defaults.string(forKey: "lastRunVersion")
         defaults.set(AppVersion.version, forKey: "lastRunVersion")
         guard let previous, previous != AppVersion.version else { return }
-        banner.show(.init(symbol: "arrow.down.circle.fill", tint: .blue, title: "Updated to \(AppVersion.version)",
-                          detail: "Digisensus Recorder is up to date."), for: 6)
+        banner.show(.init(symbol: "arrow.down.circle.fill", tint: .blue, title: String(localized: "Updated to \(AppVersion.version)"),
+                          detail: String(localized: "Digisensus Recorder is up to date.")), for: 6)
     }
 
     private func updateIcon(recording: Bool, armed: Bool) {
         guard let button = statusItem?.button else { return }
         let color: NSColor? = recording ? .systemRed : armed ? .systemBlue : nil
         button.image = color == nil ? MenuIcon.plain : MenuIcon.withDotGap
-        let state = recording ? "Recording" : armed ? "Auto-record on" : nil
+        let state = recording ? String(localized: "Recording") : armed ? String(localized: "Auto-record on") : nil
         button.setAccessibilityLabel(["Digisensus Recorder", state].compactMap { $0 }.joined(separator: ", "))
         button.toolTip = button.accessibilityLabel()
 
@@ -395,11 +398,11 @@ extension AppDelegate {
             try? await Task.sleep(for: .seconds(0.8))
             write(onboardingWindow, "onboarding-\(step + 1)")
         }
-        onboardingFlow?.step = 3
+        onboardingFlow?.step = 4
         onboardingFlow?.aiChoice = .own
         AIPreset.named("anthropic").map { onboardingFlow?.choose($0, for: .summary) }
         try? await Task.sleep(for: .seconds(0.8))
-        write(onboardingWindow, "onboarding-4-own")
+        write(onboardingWindow, "onboarding-5-own")
         onboardingWindow?.close()
 
         openMainWindow()

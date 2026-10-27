@@ -10,10 +10,11 @@ enum OggOpusError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .opus(let step, let code): return "Opus couldn't \(step) (\(String(cString: opus_strerror(code))))."
-        case .ogg(let step): return "Ogg couldn't \(step)."
-        case .notOggOpus: return "This isn't an Ogg Opus file."
-        case .unsupported(let what): return "Unsupported Ogg Opus file: \(what)."
+        case .opus(let step, let code):
+            return String(localized: "The audio couldn't be compressed (Opus: \(step), \(String(cString: opus_strerror(code)))).")
+        case .ogg(let step): return String(localized: "The audio file couldn't be written (Ogg: \(step)).")
+        case .notOggOpus: return String(localized: "This isn't an Ogg Opus file.")
+        case .unsupported(let what): return String(localized: "This Ogg Opus file isn't supported (\(what)).")
         }
     }
 }

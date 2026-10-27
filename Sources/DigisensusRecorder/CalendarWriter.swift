@@ -8,7 +8,7 @@ enum CalendarDestination: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .thisMac: return "Calendar on this Mac"
         case .google: return "Google Calendar"
@@ -18,7 +18,7 @@ enum CalendarDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    var explanation: String {
+    var explanation: LocalizedStringResource {
         switch self {
         case .thisMac: return "Goes to the default calendar in Calendar, including Google or Exchange accounts added in System Settings › Internet Accounts."
         case .google, .outlook, .microsoft365: return "Opens the event in your browser to check and save."
@@ -33,8 +33,8 @@ enum CalendarWriteError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noDate: return "This agreement has no valid date."
-        case .noDefaultCalendar: return "Calendar has no default calendar for new events. Choose one in Calendar › Settings › General."
+        case .noDate: return String(localized: "This agreement has no valid date.")
+        case .noDefaultCalendar: return String(localized: "Calendar has no default calendar for new events. Choose one in Calendar › Settings › General.")
         }
     }
 }
@@ -44,7 +44,7 @@ final class CalendarWriter {
     private let store = EKEventStore()
 
     func add(_ agreement: Agreement, from recording: Recording, to destination: CalendarDestination) async throws {
-        let notes = Self.notes(for: agreement, from: recording)
+        let notes = agreement.notes(from: recording)
         switch destination {
         case .thisMac:
             if await hasWriteAccess() {
@@ -61,14 +61,6 @@ final class CalendarWriter {
         case .microsoft365:
             try open(agreement.outlookLink(host: "outlook.office.com", notes: notes))
         }
-    }
-
-    static func notes(for agreement: Agreement, from recording: Recording) -> String {
-        let when = recording.startedAt.formatted(date: .long, time: .shortened)
-        var lines = ["From the call “\(recording.heading)” on \(when), recorded with Digisensus Recorder."]
-        if let headline = recording.summaryShort { lines.append(headline) }
-        if let quote = agreement.quote { lines += ["", "“\(quote)”"] }
-        return lines.joined(separator: "\n")
     }
 
     private func hasWriteAccess() async -> Bool {
@@ -162,16 +154,6 @@ extension Agreement {
 
     private static func compactDay(_ date: Date) -> String {
         day(of: date).replacingOccurrences(of: "-", with: "")
-    }
-
-    private static func link(host: String, path: String, query: KeyValuePairs<String, String>) -> URL? {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = host
-        components.path = path
-        components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
-        return components.url
     }
 
     private static func icsEscaped(_ text: String) -> String {

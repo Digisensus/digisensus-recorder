@@ -1,0 +1,936 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSAppleEventsUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتحقق Digisensus Recorder من علامات التبويب المفتوحة في متصفحك ليسمّي مكالمة المتصفح باسم تطبيق الاجتماع، مثل Zoom أو Teams. وبدون ذلك، تُسمّى المكالمة باسم المتصفح."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder kontroluje otevřené panely prohlížeče, aby hovor v prohlížeči pojmenoval podle aplikace schůzky, např. Zoom nebo Teams. Bez tohoto oprávnění dostane hovor název podle prohlížeče."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder tjekker din browsers åbne faner for at navngive et browseropkald efter mødeappen, f.eks. Zoom eller Teams. Uden dette får opkaldet navn efter browseren."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder prüft die geöffneten Tabs Ihres Browsers, um einen Anruf im Browser nach seiner Meeting-App wie Zoom oder Teams zu benennen. Ohne diese Berechtigung wird der Anruf nach dem Browser benannt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder checks your browser's open tabs to name a browser call by its meeting app, like Zoom or Teams. Without this, the call is named after the browser."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder consulta las pestañas abiertas de tu navegador para nombrar una llamada hecha en el navegador según su app de reuniones, como Zoom o Teams. Sin este permiso, la llamada recibe el nombre del navegador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder consulte les onglets ouverts de votre navigateur pour nommer un appel passé dans le navigateur d’après son app de réunion, comme Zoom ou Teams. Sans cette autorisation, l’appel porte le nom du navigateur."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder בודקת את הלשוניות הפתוחות בדפדפן כדי לתת לשיחה בדפדפן את שם אפליקציית הפגישות, כמו Zoom או Teams. בלי זה, השיחה תיקרא על שם הדפדפן."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder आपके ब्राउज़र के खुले टैब जाँचता है, ताकि ब्राउज़र कॉल को उसके मीटिंग ऐप, जैसे Zoom या Teams, के नाम से दिखा सके। इसके बिना, कॉल का नाम ब्राउज़र के नाम पर रखा जाता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder memeriksa tab yang terbuka di browser Anda untuk menamai panggilan browser berdasarkan app rapatnya, seperti Zoom atau Teams. Tanpa izin ini, panggilan dinamai sesuai browser."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder controlla le schede aperte del browser per dare a una chiamata nel browser il nome della sua app per riunioni, come Zoom o Teams. Senza questo permesso, la chiamata prende il nome del browser."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderはブラウザで開いているタブを確認し、ブラウザでの通話にZoomやTeamsなどの会議App名を付けます。許可しない場合、通話にはブラウザ名が付きます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 브라우저에서 열린 탭을 확인하여 브라우저 통화의 이름을 Zoom이나 Teams 같은 회의 앱 이름으로 지정합니다. 허용하지 않으면 통화 이름에 브라우저 이름이 사용됩니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder tikrina atidarytus naršyklės skirtukus, kad skambutį naršyklėje pavadintų pagal susitikimų programą, pvz., Zoom ar Teams. Be šio leidimo skambutis pavadinamas naršyklės vardu."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder bekijkt de geopende tabbladen in je browser om een browsergesprek te vernoemen naar de vergaderapp, zoals Zoom of Teams. Zonder deze toestemming krijgt het gesprek de naam van de browser."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder sprawdza otwarte karty przeglądarki, aby nazwać rozmowę w przeglądarce według aplikacji spotkania, np. Zoom lub Teams. Bez tego rozmowa otrzyma nazwę przeglądarki."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder verifica as abas abertas do navegador para nomear uma chamada no navegador pelo app de reunião, como Zoom ou Teams. Sem isso, a chamada recebe o nome do navegador."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder проверяет открытые вкладки браузера, чтобы назвать звонок в браузере по приложению встречи, например Zoom или Teams. Без этого звонок называется по имени браузера."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder kontrollerar webbläsarens öppna flikar för att namnge ett webbläsarsamtal efter mötesappen, till exempel Zoom eller Teams. Utan detta namnges samtalet efter webbläsaren."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ตรวจสอบแท็บที่เปิดอยู่ในเบราว์เซอร์เพื่อตั้งชื่อการโทรผ่านเบราว์เซอร์ตามแอปประชุม เช่น Zoom หรือ Teams หากไม่อนุญาต การโทรจะใช้ชื่อเบราว์เซอร์แทน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, tarayıcıdaki bir görüşmeyi Zoom veya Teams gibi toplantı uygulamasının adıyla adlandırmak için tarayıcınızın açık sekmelerini denetler. Bu izin olmadan görüşme, tarayıcının adıyla adlandırılır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder перевіряє відкриті вкладки браузера, щоб назвати дзвінок у браузері за програмою зустрічі, як-от Zoom чи Teams. Без цього дзвінок матиме назву браузера."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder kiểm tra các tab đang mở trong trình duyệt để đặt tên cuộc gọi trên trình duyệt theo ứng dụng họp, như Zoom hoặc Teams. Nếu không cho phép, cuộc gọi sẽ được đặt theo tên trình duyệt."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 会检查浏览器中打开的标签页，以便按会议 App（如 Zoom 或 Teams）为浏览器通话命名。如果不允许，通话将以浏览器名称命名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 會檢查瀏覽器中打開的標籤頁，以便依會議 App（如 Zoom 或 Teams）為瀏覽器通話命名。若不允許，通話將以瀏覽器名稱命名。"
+          }
+        }
+      }
+    },
+    "NSAudioCaptureUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يسجّل Digisensus Recorder الطرف الآخر من مكالماتك، من تطبيق الاتصال أو من صوت النظام، في القناة اليسرى من التسجيل."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nahrává druhou stranu vašich hovorů z aplikace pro hovory nebo ze systémového zvuku do levého kanálu nahrávky."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder optager den anden side af dine opkald – fra opkaldsappen eller systemlyden – i optagelsens venstre kanal."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nimmt die Gegenseite Ihrer Anrufe aus der Anruf-App oder dem Systemaudio im linken Kanal der Aufnahme auf."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder records the other side of your calls, from the calling app or system audio, into the left channel of the recording."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder graba a la otra parte de tus llamadas, desde la app de llamadas o el audio del sistema, en el canal izquierdo de la grabación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder enregistre l’autre partie de vos appels, depuis l’app d’appel ou l’audio du système, sur le canal gauche de l’enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder מקליטה את הצד השני של השיחות שלך, מאפליקציית השיחה או משמע המערכת, לערוץ השמאלי של ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder आपकी कॉल के दूसरे पक्ष को, कॉल करने वाले ऐप या सिस्टम ऑडियो से, रिकॉर्डिंग के बाएँ चैनल में रिकॉर्ड करता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder merekam pihak lain dalam panggilan Anda, dari app panggilan atau audio sistem, ke saluran kiri rekaman."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder registra l'altra parte delle tue chiamate, dall'app della chiamata o dall'audio di sistema, nel canale sinistro della registrazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderは、通話Appまたはシステムオーディオから通話相手の音声を録音し、録音の左チャンネルに保存します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 통화 앱 또는 시스템 오디오에서 통화 상대방의 소리를 녹음 파일의 왼쪽 채널에 녹음합니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder įrašo kitą skambučio pusę iš skambučio programos arba sistemos garso į kairįjį įrašo kanalą."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder neemt de andere kant van je gesprekken op, vanuit de app waarmee je belt of de systeemaudio, in het linkerkanaal van de opname."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nagrywa rozmówcę z aplikacji do rozmów lub z dźwięku systemowego do lewego kanału nagrania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder grava o outro lado das suas chamadas, a partir do app da chamada ou do áudio do sistema, no canal esquerdo da gravação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder записывает собеседника из приложения для звонков или системного звука в левый канал записи."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder spelar in den andra sidan av dina samtal, från samtalsappen eller systemljudet, i inspelningens vänstra kanal."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder บันทึกเสียงอีกฝ่ายในการโทรจากแอปที่ใช้โทรหรือจากเสียงระบบ ลงในช่องเสียงซ้ายของไฟล์บันทึก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, görüşmelerinizin karşı tarafını görüşme uygulamasından veya sistem sesinden kaydın sol kanalına kaydeder."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder записує співрозмовника з програми для дзвінків або системного звуку в лівий канал запису."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ghi âm phía bên kia của cuộc gọi, từ ứng dụng gọi hoặc âm thanh hệ thống, vào kênh trái của bản ghi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 会从通话 App 或系统音频中录制通话对方的声音，并存入录音的左声道。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 會從通話 App 或系統音訊錄製通話對方的聲音，並存入錄音的左聲道。"
+          }
+        }
+      }
+    },
+    "NSCalendarsWriteOnlyAccessUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يضيف Digisensus Recorder الاجتماعات والمواعيد النهائية المتفق عليها في المكالمة إلى تقويمك، فقط عندما تختار «إضافة». ولا يقرأ تقويمك أبدًا."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder přidává do vašeho kalendáře schůzky a termíny dohodnuté v hovoru, pouze když zvolíte Přidat. Váš kalendář nikdy nečte."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder føjer møder og frister, der er aftalt i et opkald, til din kalender, men kun når du vælger Tilføj. Appen læser aldrig din kalender."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder trägt die in einem Anruf vereinbarten Termine und Fristen in Ihren Kalender ein, aber nur, wenn Sie „Hinzufügen“ wählen. Ihr Kalender wird nie gelesen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder adds the meetings and deadlines agreed in a call to your calendar, only when you choose Add. It never reads your calendar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder añade a tu calendario las reuniones y fechas límite acordadas en una llamada, solo cuando eliges Añadir. Nunca lee tu calendario."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ajoute à votre calendrier les réunions et échéances convenues pendant un appel, uniquement lorsque vous choisissez Ajouter. Il ne lit jamais votre calendrier."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder מוסיפה ללוח השנה שלך את הפגישות והמועדים שסוכמו בשיחה, רק כשתבחר \"הוסף\". היא אף פעם לא קוראת את לוח השנה שלך."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder कॉल में तय हुई मीटिंग और डेडलाइन आपके कैलेंडर में जोड़ता है, केवल तभी जब आप “जोड़ें” चुनते हैं। यह आपका कैलेंडर कभी नहीं पढ़ता।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder menambahkan rapat dan tenggat yang disepakati dalam panggilan ke kalender Anda, hanya saat Anda memilih Tambah. App ini tidak pernah membaca kalender Anda."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder aggiunge al tuo calendario le riunioni e le scadenze concordate in una chiamata, solo quando scegli Aggiungi. Non legge mai il tuo calendario."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderは、「追加」を選択したときだけ、通話で合意した会議や期限をカレンダーに追加します。カレンダーを読み取ることはありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 사용자가 추가를 선택할 때만 통화에서 합의한 회의와 마감일을 캘린더에 추가합니다. 캘린더를 읽지 않습니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder prideda per skambutį sutartus susitikimus ir terminus į jūsų kalendorių tik tada, kai pasirenkate „Pridėti“. Jūsų kalendoriaus jis niekada neskaito."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder zet afspraken en deadlines uit een gesprek in je agenda, alleen als je ‘Voeg toe’ kiest. Het leest je agenda nooit."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder dodaje do Twojego kalendarza spotkania i terminy ustalone w rozmowie, tylko gdy wybierzesz Dodaj. Nigdy nie odczytuje Twojego kalendarza."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder adiciona ao seu calendário as reuniões e os prazos combinados em uma chamada, só quando você escolhe Adicionar. Ele nunca lê o seu calendário."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder добавляет встречи и сроки, о которых договорились в звонке, в Ваш календарь, только когда Вы выбираете «Добавить». Приложение никогда не читает Ваш календарь."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder lägger till möten och deadlines som bestämts i ett samtal i din kalender, bara när du väljer Lägg till. Appen läser aldrig din kalender."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder จะเพิ่มการประชุมและกำหนดส่งที่ตกลงกันในการโทรลงในปฏิทินของคุณเฉพาะเมื่อคุณเลือก “เพิ่ม” เท่านั้น และจะไม่อ่านปฏิทินของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, bir görüşmede kararlaştırılan toplantıları ve son tarihleri yalnızca Ekle'yi seçtiğinizde takviminize ekler. Takviminizi asla okumaz."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder додає зустрічі й терміни, про які домовилися в дзвінку, до вашого календаря, лише коли ви вибираєте «Додати». Програма ніколи не читає ваш календар."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder chỉ thêm các cuộc họp và hạn chót đã thống nhất trong cuộc gọi vào lịch của bạn khi bạn chọn Thêm. Ứng dụng không bao giờ đọc lịch của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅当你选择“添加”时，Digisensus Recorder 才会将通话中约定的会议和截止日期添加到你的日历。它绝不会读取你的日历。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在你選擇「加入」時，Digisensus Recorder 才會將通話中約定的會議和截止日期加入你的行事曆。它絕不會讀取你的行事曆。"
+          }
+        }
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يرسل Digisensus Recorder التسجيلات والتفريغات إلى خوادم الذكاء الاصطناعي التي تختارها على شبكتك."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder odesílá nahrávky a přepisy na servery AI ve vaší síti, které si zvolíte."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder sender optagelser og udskrifter til de AI-servere på dit netværk, som du vælger."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder sendet Aufnahmen und Transkripte an die von Ihnen gewählten KI-Server in Ihrem Netzwerk."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder sends recordings and transcripts to the AI servers you choose on your network."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder envía grabaciones y transcripciones a los servidores de IA que elijas en tu red."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder envoie les enregistrements et transcriptions aux serveurs d’IA que vous choisissez sur votre réseau."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder שולחת הקלטות ותמלילים לשרתי ה-AI שתבחר ברשת שלך."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder रिकॉर्डिंग और ट्रांसक्रिप्ट आपके नेटवर्क पर आपके चुने हुए AI सर्वर को भेजता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder mengirim rekaman dan transkrip ke server AI yang Anda pilih di jaringan Anda."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder invia registrazioni e trascrizioni ai server IA che scegli sulla tua rete."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderは、録音と文字起こしをネットワーク上の選択したAIサーバに送信します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 네트워크에서 사용자가 선택한 AI 서버로 녹음과 녹취록을 보냅니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder siunčia įrašus ir stenogramas jūsų pasirinktiems DI serveriams jūsų tinkle."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder stuurt opnamen en transcripten naar de AI-servers op je netwerk die je kiest."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder wysyła nagrania i transkrypcje do wybranych przez Ciebie serwerów AI w Twojej sieci."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder envia gravações e transcrições aos servidores de IA que você escolher na sua rede."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder отправляет записи и расшифровки на выбранные Вами ИИ-серверы в Вашей сети."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder skickar inspelningar och transkriptioner till de AI-servrar du väljer i ditt nätverk."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ส่งไฟล์บันทึกและข้อความถอดเสียงไปยังเซิร์ฟเวอร์ AI ที่คุณเลือกบนเครือข่ายของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, kayıtları ve transkriptleri ağınızda seçtiğiniz YZ sunucularına gönderir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder надсилає записи й транскрипти на вибрані вами ШІ-сервери у вашій мережі."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder gửi bản ghi và bản chép lời tới các máy chủ AI mà bạn chọn trên mạng của mình."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 会将录音和转录文本发送到你在网络上选择的 AI 服务器。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 會將錄音和轉錄文字傳送到你在網路上選擇的 AI 伺服器。"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يسجّل Digisensus Recorder الميكروفون في القناة اليمنى من التسجيل."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nahrává váš mikrofon do pravého kanálu nahrávky."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder optager din mikrofon i optagelsens højre kanal."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nimmt Ihr Mikrofon im rechten Kanal der Aufnahme auf."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder records your microphone into the right channel of the recording."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder graba tu micrófono en el canal derecho de la grabación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder enregistre votre micro sur le canal droit de l’enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder מקליטה את המיקרופון שלך לערוץ הימני של ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder आपके माइक्रोफ़ोन को रिकॉर्डिंग के दाएँ चैनल में रिकॉर्ड करता है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder merekam mikrofon Anda ke saluran kanan rekaman."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder registra il tuo microfono nel canale destro della registrazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderは、マイクの音声を録音の右チャンネルに録音します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 마이크 소리를 녹음 파일의 오른쪽 채널에 녹음합니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder įrašo jūsų mikrofono garsą į dešinįjį įrašo kanalą."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder neemt je microfoon op in het rechterkanaal van de opname."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder nagrywa Twój mikrofon do prawego kanału nagrania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder grava o seu microfone no canal direito da gravação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder записывает Ваш микрофон в правый канал записи."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder spelar in din mikrofon i inspelningens högra kanal."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder บันทึกเสียงจากไมโครโฟนของคุณลงในช่องเสียงขวาของไฟล์บันทึก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, mikrofonunuzu kaydın sağ kanalına kaydeder."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder записує ваш мікрофон у правий канал запису."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ghi âm micrô của bạn vào kênh phải của bản ghi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 会将你的麦克风声音录制到录音的右声道。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder 會將你的麥克風聲音錄製到錄音的右聲道。"
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يضيف Digisensus Recorder مهام المكالمة إلى التذكيرات، فقط عندما تختار ذلك. ولا يقرأ تذكيراتك أبدًا."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder přidává úkoly z hovoru do Připomínek, pouze když to zvolíte. Vaše připomínky nikdy nečte."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder føjer et opkalds opgaver til Påmindelser, men kun når du vælger det. Appen læser aldrig dine påmindelser."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder fügt die Aufgaben eines Anrufs zu Erinnerungen hinzu, aber nur, wenn Sie es möchten. Ihre Erinnerungen werden nie gelesen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder adds a call's action items to Reminders, only when you choose to. It never reads your reminders."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder añade las tareas de una llamada a Recordatorios, solo cuando tú quieras. Nunca lee tus recordatorios."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder ajoute les actions à mener d’un appel à Rappels, uniquement si vous le souhaitez. Il ne lit jamais vos rappels."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder מוסיפה את המשימות מהשיחה לתזכורות, רק כשתבחר בכך. היא אף פעם לא קוראת את התזכורות שלך."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder कॉल के ऐक्शन आइटम रिमाइंडर में जोड़ता है, केवल तभी जब आप चाहें। यह आपके रिमाइंडर कभी नहीं पढ़ता।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder menambahkan item tindakan dari panggilan ke Pengingat, hanya saat Anda memilihnya. App ini tidak pernah membaca pengingat Anda."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder aggiunge a Promemoria le attività da svolgere di una chiamata, solo quando lo scegli tu. Non legge mai i tuoi promemoria."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorderは、選択したときだけ通話のアクションアイテムをリマインダーに追加します。リマインダーを読み取ることはありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder는 사용자가 원할 때만 통화의 할 일을 미리 알림에 추가합니다. 미리 알림을 읽지 않습니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder prideda skambučio užduotis į Priminimus tik tada, kai to norite. Jūsų priminimų jis niekada neskaito."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder zet de actiepunten van een gesprek in Herinneringen, alleen als je daarvoor kiest. Het leest je herinneringen nooit."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder dodaje zadania z rozmowy do Przypomnień tylko wtedy, gdy tego zechcesz. Nigdy nie odczytuje Twoich przypomnień."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Digisensus Recorder adiciona as tarefas de uma chamada aos Lembretes, só quando você escolhe. Ele nunca lê os seus lembretes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder добавляет задачи из звонка в Напоминания, только когда Вы этого захотите. Приложение никогда не читает Ваши напоминания."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder lägger till ett samtals åtgärdspunkter i Påminnelser, bara när du väljer det. Appen läser aldrig dina påminnelser."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder จะเพิ่มสิ่งที่ต้องทำจากการโทรลงในเตือนความจำเฉพาะเมื่อคุณเลือกเท่านั้น และจะไม่อ่านรายการเตือนความจำของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder, yalnızca siz istediğinizde bir görüşmenin yapılacaklarını Anımsatıcılar'a ekler. Anımsatıcılarınızı asla okumaz."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder додає завдання з дзвінка в Нагадування, лише коли ви цього захочете. Програма ніколи не читає ваші нагадування."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digisensus Recorder chỉ thêm việc cần làm của cuộc gọi vào Lời nhắc khi bạn chọn. Ứng dụng không bao giờ đọc lời nhắc của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅当你选择时，Digisensus Recorder 才会将通话的待办事项添加到“提醒事项”。它绝不会读取你的提醒事项。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在你選擇時，Digisensus Recorder 才會將通話的待辦事項加入「提醒事項」。它絕不會讀取你的提醒事項。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
