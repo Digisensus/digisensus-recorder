@@ -19,14 +19,27 @@ Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/onboarding.png" alt="Record any call on your Mac: iPhone calls, FaceTime, WhatsApp, Zoom, Google Meet, Teams and Slack"></td>
-    <td align="center"><img src="docs/screenshots/menu-bar.png" alt="Menu bar call recorder with auto-record and recent calls" width="300"></td>
+    <td><img src="docs/screenshots/decisions.png" alt="Decisions from a call, each with who suggested it, who agreed and a link to the moment in the recording"></td>
+    <td><img src="docs/screenshots/action-items.png" alt="Action items from a call as a checklist with owner and due date, filtered by you or them, ready to send to Reminders, Things or OmniFocus"></td>
   </tr>
   <tr>
-    <td align="center">Works with the apps you call from</td>
-    <td align="center">One click from the menu bar</td>
+    <td align="center">Decisions, with who suggested and who agreed</td>
+    <td align="center">Action items to tick off or send to your to-do app</td>
   </tr>
 </table>
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/language.png" alt="Choose your language: the call recorder in 25 languages, including English, Deutsch, Español, Français, Lietuvių, Polski, Русский, 日本語 and 简体中文"></td>
+    <td><img src="docs/screenshots/onboarding.png" alt="Record any call on your Mac: iPhone calls, FaceTime, WhatsApp, Zoom, Google Meet, Teams and Slack"></td>
+  </tr>
+  <tr>
+    <td align="center">In 25 languages</td>
+    <td align="center">Works with the apps you call from</td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/screenshots/menu-bar.png" alt="Menu bar call recorder with auto-record and recent calls" width="300"><br>One click from the menu bar</p>
 
 ## See it in action
 
@@ -52,7 +65,8 @@ https://github.com/user-attachments/assets/66f937bb-d9b9-419b-8b79-15def55f4e2a
 - **No meeting bot.** It records the audio on your Mac, so no notetaker joins the call, nobody sees an extra participant, and it works for any call, not just scheduled meetings.
 - **Starts and stops with your call.** Auto-record begins when a call starts and ends when you hang up, with a banner and a Stop button so you always know. Nothing is captured between calls.
 - **Private, on your Mac.** Audio only, never the screen. Recordings are Ogg Opus files in `~/Music/Digisensus Recorder`, and nothing is uploaded unless you choose to transcribe.
-- **Transcription and AI meeting notes when you want them.** Summaries list decisions and next steps, like meeting minutes written for you, and pick out the meetings and deadlines agreed in the call so you can add them to your calendar in one click. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
+- **Transcription and AI meeting notes when you want them.** Summaries list the decisions with their reasons and the action items as a checklist of who does what by when, grouped by topic in long calls, like meeting minutes written for you. Send the action items to Reminders, Things or OmniFocus, or share them with any other to-do app. They also pick out the meetings and deadlines agreed in the call so you can add them to your calendar in one click. Use a Digisensus account (free daily credit, sign in with your email, no password), your own server (any OpenAI-compatible speech-to-text and chat server, such as Ollama or LM Studio), or a cloud AI provider with your own API key: OpenAI, Anthropic, Google Gemini, Mistral, Groq, Together AI, DeepSeek, xAI or OpenRouter. Or skip AI entirely.
+- **In your language.** The app speaks 25 languages, from English, Spanish and Chinese to Lithuanian, and writes summaries, decisions and tasks in the language you choose, whatever language the call was in.
 - **Organised.** Browse by day in the calendar, filter by app or tag, and search every transcript. Each call has its own notes. Copy a transcript, or export it as plain text, Markdown, subtitles (SRT), a spreadsheet (CSV) or JSON.
 - **Works with AI agents.** The bundled `recorder` command and its MCP server let Claude Code, Codex and other agents list, search, export and summarise recordings, and start or stop recording. Turn it on in Settings › Advanced. The command lives inside the app, at `Digisensus Recorder.app/Contents/MacOS/recorder`.
 
@@ -82,7 +96,9 @@ Digisensus Recorder records audio and nothing else. The walkthrough asks for the
 
 **Calendar · optional, write-only.** Asked the first time you add a meeting or deadline from a call summary to the Calendar on your Mac. The app can only add events, to your default calendar, and cannot read anything already in it. Without it, Add opens the event in the Calendar app for you to import instead. Adding to Google Calendar, Outlook.com, Outlook (Microsoft 365) or another app needs no permission: the event opens in your browser or that app for you to save.
 
-**Nothing else.** The app does not use Accessibility, Full Disk Access or Contacts, and never reads your calendar. Recordings are plain files in `~/Music/Digisensus Recorder`; the Mac App Store version is sandboxed and can reach that folder and nothing else of yours.
+**Reminders · optional.** Asked the first time you send a call's action items to Reminders. macOS has no add-only access for Reminders, so it asks for full access, but the app only adds reminders, to your default list, and never reads them. Things and OmniFocus need no permission: the tasks open in that app.
+
+**Nothing else.** The app does not use Accessibility, Full Disk Access or Contacts, and never reads your calendar or reminders. Recordings are plain files in `~/Music/Digisensus Recorder`; the Mac App Store version is sandboxed and can reach that folder and nothing else of yours.
 
 ## FAQ
 
@@ -102,7 +118,7 @@ Digisensus Recorder is free and open source under the GPL. Like them, it gives y
 On your Mac, as Ogg Opus audio files in `~/Music/Digisensus Recorder`. Nothing is uploaded unless you ask for a transcript. Transcription runs on the Digisensus service or on an OpenAI-compatible server you choose, which can be one running on your own Mac.
 
 **What does the app send to Digisensus when I don't use the Digisensus service?**
-Every 15 minutes while it runs, the app checks for messages from Digisensus, sending its version and whether it came from the App Store. Unless you turn off Settings › Advanced › Share usage statistics, the check also carries an identifier derived from your Mac (a one-way hash, not the serial number), whether the app just started, the chip type, your preferred language and which AI service you chose (Digisensus, your own or none, and for your own the kind, such as Ollama or OpenAI, never its address or key). That is how we count how many people use each version. Recordings, transcripts and notes are never part of it.
+Every 15 minutes while it runs, the app checks for messages from Digisensus, sending its version and whether it came from the App Store. Unless you turn off Settings › Advanced › Share usage statistics, the check also carries an identifier derived from your Mac (a one-way hash, not the serial number), whether the app just started, the Mac model and chip (such as Mac16,5 and Apple M4 Max), your preferred language, the language the app is shown in and which AI service you chose (Digisensus, your own or none, and for your own the kind, such as Ollama or OpenAI, never its address or key). That is how we count how many people use each version. Recordings, transcripts and notes are never part of it.
 
 **I used the direct download. Can I switch to the Mac App Store version?**
 Yes. On its first launch the App Store version copies your library (transcripts, summaries, titles, notes, tags) and settings from the direct download, and leaves the original untouched. Sign in again, or re-enter your own API keys, in Settings › Transcription & AI: macOS keeps passwords and keys private to the copy that saved them. Recordings are shared, since both use `~/Music/Digisensus Recorder`. You'll be asked for the permissions again, because macOS treats the App Store copy as a new app.
@@ -128,6 +144,8 @@ With the Command Line Tools alone (no Xcode), `swift test` needs to be told wher
 ```sh
 swift test --disable-xctest -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
 ```
+
+The app is translated into 25 languages. Translations live in String Catalogs, `Resources/Localizable.xcstrings` and `Resources/InfoPlist.xcstrings` (the permission prompts). After changing text in the code, run `./localize.sh`: it builds once to collect every localizable string and syncs the catalog, so new strings show up untranslated and the localization test points at them. Compiling the catalogs into the app needs Xcode's `xcstringstool`; without Xcode, `build.sh` builds an English-only app.
 
 `build.sh` signs with your first Developer ID identity (or `CODESIGN_ID`), falling back to ad-hoc signing, which makes macOS ask for the microphone and system audio permissions again after every build. libopus and libogg come prebuilt in `Vendor/lib`; see [Vendor/README.md](Vendor/README.md) for how they were built.
 
