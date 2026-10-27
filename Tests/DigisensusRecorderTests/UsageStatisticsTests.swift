@@ -23,7 +23,9 @@ struct UsageStatisticsTests {
         #expect(request.value(forHTTPHeaderField: "X-App-Distribution") == AppDistribution.current.rawValue)
         #expect(request.value(forHTTPHeaderField: "X-Device-ID") == AppVersion.deviceID)
         #expect(request.value(forHTTPHeaderField: "X-App-Launch") == "1")
-        #expect(["apple", "intel"].contains(request.value(forHTTPHeaderField: "X-App-Chip") ?? ""))
+        #expect(request.value(forHTTPHeaderField: "X-App-Chip")?.hasPrefix("Apple M") == true)
+        #expect(request.value(forHTTPHeaderField: "X-App-Model")?.contains(",") == true)
+        #expect(request.value(forHTTPHeaderField: "X-App-UI-Language") == AppLanguage.inUse)
         #expect(request.value(forHTTPHeaderField: "X-AI-Service") == "digisensus")
         #expect(request.value(forHTTPHeaderField: "X-AI-Transcription") == nil)
     }
@@ -42,7 +44,8 @@ struct UsageStatisticsTests {
         let request = tagged(launch: true, settings: [UsageStatistics.sharingKey: false, "aiService": "own"])
         #expect(request.value(forHTTPHeaderField: "X-App-Build") == AppVersion.build)
         #expect(request.value(forHTTPHeaderField: "X-App-Distribution") != nil)
-        for header in ["X-Device-ID", "X-App-Launch", "X-App-Chip", "X-App-Language", "X-AI-Service"] {
+        for header in ["X-Device-ID", "X-App-Launch", "X-App-Model", "X-App-Chip", "X-App-Language", "X-App-UI-Language",
+                       "X-AI-Service"] {
             #expect(request.value(forHTTPHeaderField: header) == nil)
         }
     }
