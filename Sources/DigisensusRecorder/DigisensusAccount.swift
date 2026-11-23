@@ -37,7 +37,6 @@ final class DigisensusAccount: ObservableObject {
 
     struct Balance: Equatable {
         var free: Double
-        var paid: Double
         var dailyFree: Double
         var resetsAt: Date?
         var referral: Double = 0
@@ -69,9 +68,6 @@ final class DigisensusAccount: ObservableObject {
 
     @Published private(set) var state: State = .signedOut
     @Published private(set) var balance: Balance?
-    @Published private(set) var trainingEnabled = true
-    private var trainingConfirmed = true
-    private var trainingSave: Task<Void, Never>?
     @Published private(set) var referral: Referral?
     @Published private(set) var referralTermsURL: URL?
     @Published private(set) var referralReward: Double = 5
@@ -181,8 +177,6 @@ final class DigisensusAccount: ObservableObject {
                 Keychain.set(token, for: Self.tokenAccount)
                 UserDefaults.standard.set(email, forKey: Self.emailKey)
                 state = .signedIn(email: email)
-                trainingConfirmed = reply.json["training_enabled"] as? Bool ?? true
-                trainingEnabled = trainingConfirmed
                 Log.write("signed in to Digisensus")
                 switch reply.json["referral"] as? String {
                 case "pending":
@@ -215,7 +209,6 @@ final class DigisensusAccount: ObservableObject {
             func amount(_ name: String) -> Double { j["\(name)_d"] as? Double ?? 0 }
             balance = Balance(
                 free: amount("free"),
-                paid: amount("paid"),
                 dailyFree: amount("daily_free"),
                 resetsAt: (j["resets_at"] as? String).flatMap(Self.parseDate),
                 referral: amount("referral"),
@@ -223,10 +216,6 @@ final class DigisensusAccount: ObservableObject {
                 canSpend: !((j["tier"] as? String) ?? "").isEmpty)
             if let email = j["email"] as? String, case .signedIn(let current) = state, current != email {
                 state = .signedIn(email: email)
-            }
-            if trainingSave == nil {
-                trainingConfirmed = j["training_enabled"] as? Bool ?? true
-                trainingEnabled = trainingConfirmed
             }
 
             let list = try await call("GET", "v1/models", bearer: token)
@@ -321,31 +310,6 @@ final class DigisensusAccount: ObservableObject {
         forgetToken()
     }
 
-    func setTraining(enabled: Bool) {
-        guard let token = deviceToken else { return }
-        trainingEnabled = enabled
-        trainingSave?.cancel()
-        let save = Task { [weak self] in
-            var reply: Reply?
-            var failure: String?
-            do {
-                reply = try await self?.call("PATCH", "v1/account", bearer: token, body: ["training_enabled": enabled])
-            } catch {
-                failure = error.localizedDescription
-            }
-            guard let self, !Task.isCancelled, deviceToken == token else { return }
-            trainingSave = nil
-            if let reply, reply.status == 200 {
-                trainingConfirmed = enabled
-                Log.write("training \(enabled ? "on" : "off")")
-            } else {
-                trainingEnabled = trainingConfirmed
-                message = failure ?? reply?.message ?? String(localized: "Couldn't save the setting (\(reply?.status ?? 0)).")
-            }
-        }
-        trainingSave = save
-    }
-
     func deleteAccount() {
         guard let token = deviceToken else { return }
         Task {
@@ -364,10 +328,6 @@ final class DigisensusAccount: ObservableObject {
     }
 
     private func forgetToken() {
-        trainingSave?.cancel()
-        trainingSave = nil
-        trainingConfirmed = true
-        trainingEnabled = true
         token = nil
         Keychain.set(nil, for: Self.tokenAccount)
         UserDefaults.standard.removeObject(forKey: Self.emailKey)

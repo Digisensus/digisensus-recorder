@@ -621,10 +621,6 @@ private struct AISetupStep: View {
                     Text("Signed in as \(email)").font(.system(size: 14, weight: .semibold))
                     Text("Transcripts and summaries use your free daily credit.")
                         .font(.system(size: 13)).foregroundStyle(Palette.secondary)
-                    TrainingToggle(account: account)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .padding(.top, 8)
                 }
             }
         case .waiting(let email, _):

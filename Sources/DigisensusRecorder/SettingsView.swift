@@ -330,14 +330,6 @@ private struct DigisensusAccountRows: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
-                    if balance.paid != 0 {
-                        HStack(spacing: 4) {
-                            Text("Purchased credit")
-                            CreditAmount(amount: balance.paid, size: 11)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
                     if !balance.canSpend {
                         Text("Today's credit is used up. Transcripts and summaries resume when it renews.")
                             .font(.caption)
@@ -346,21 +338,8 @@ private struct DigisensusAccountRows: View {
                 }
             }
         }
-        if account.isSignedIn {
-            TrainingToggle(account: account)
-        }
         if let message = account.message {
             Text(message).foregroundStyle(.secondary)
-        }
-    }
-}
-
-struct TrainingToggle: View {
-    @ObservedObject var account: DigisensusAccount
-
-    var body: some View {
-        Toggle(isOn: Binding(get: { account.trainingEnabled }, set: { account.setTraining(enabled: $0) })) {
-            Text("Help improve Digisensus speech recognition")
         }
     }
 }
