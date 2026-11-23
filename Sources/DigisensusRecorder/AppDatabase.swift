@@ -28,6 +28,7 @@ struct Recording: Codable, Identifiable, Equatable, FetchableRecord, MutablePers
     var summaryPoints: [String]?
     var summaryDecisions: [Decision]?
     var summaryActions: [ActionItem]?
+    var speakers: [Speaker]?
     var tags: [String] = []
     var transcriptJobID: String?
     var transcriptJobStartedAt: Date?
@@ -48,6 +49,7 @@ struct TranscriptSegment: Codable, Identifiable, Equatable, FetchableRecord, Mut
     var id: Int64?
     var recordingId: Int64
     var channel: Channel
+    var speaker: Int? = nil
     var startTime: Double
     var endTime: Double
     var text: String
@@ -195,6 +197,15 @@ final class AppDatabase {
                 t.add(column: "summaryActions", .jsonText)
             }
         }
+
+        migrator.registerMigration("v8 speakers") { db in
+            try db.alter(table: "transcriptSegment") { t in
+                t.add(column: "speaker", .integer)
+            }
+            try db.alter(table: "recording") { t in
+                t.add(column: "speakers", .jsonText)
+            }
+        }
         return migrator
     }
 }
@@ -293,6 +304,7 @@ extension AppDatabase {
                 recording.summaryPoints = nil
                 recording.summaryDecisions = nil
                 recording.summaryActions = nil
+                recording.speakers = Speaker.found(in: segments)
                 try recording.update(db)
             }
             try Self.unaddedAgreements(of: recordingID).deleteAll(db)
@@ -315,6 +327,15 @@ extension AppDatabase {
                 return action
             }
             recording.summaryActions = actions.isEmpty ? nil : actions
+            if var speakers = recording.speakers {
+                for (label, name) in summary.speakerNames {
+                    guard let number = recording.speakerNumber(forLabel: label),
+                          let index = speakers.firstIndex(where: { $0.number == number }),
+                          !speakers[index].namedByYou else { continue }
+                    speakers[index].name = name
+                }
+                recording.speakers = speakers
+            }
             if recording.tags.isEmpty { recording.tags = Array(summary.tags.prefix(3)) }
             try recording.update(db)
             try Self.unaddedAgreements(of: recordingID).deleteAll(db)
@@ -347,6 +368,18 @@ extension AppDatabase {
                   var actions = recording.summaryActions, actions.indices.contains(index) else { return }
             actions[index].done = done
             recording.summaryActions = actions
+            try recording.update(db)
+        }
+    }
+
+    func setSpeakerName(_ name: String?, number: Int, recordingID: Int64) throws {
+        try writer.write { db in
+            guard var recording = try Recording.fetchOne(db, key: recordingID),
+                  var speakers = recording.speakers,
+                  let index = speakers.firstIndex(where: { $0.number == number }) else { return }
+            speakers[index].name = name
+            speakers[index].namedByYou = true
+            recording.speakers = speakers
             try recording.update(db)
         }
     }

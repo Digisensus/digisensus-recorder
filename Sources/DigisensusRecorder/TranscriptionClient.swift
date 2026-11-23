@@ -15,6 +15,7 @@ struct TranscriptionSettings: Equatable, AIServiceSettings {
 struct TranscriptionResult {
     struct Turn {
         let channel: TranscriptSegment.Channel
+        var speaker: Int? = nil
         let start: Double
         let end: Double
         let text: String
@@ -65,15 +66,13 @@ struct TranscriptionClient {
         }
     }
 
-    static let agentChannel = ["agent_channel": "right"]
-
     func transcribe(_ file: URL) async throws -> TranscriptionResult {
-        let response = settings.provider == .digisensus ? try await request(file, extraFields: Self.agentChannel) : [:]
-        return try await finish(response, file: file) { try await request($0, extraFields: [:]) }
+        let response = settings.provider == .digisensus ? try await request(file) : [:]
+        return try await finish(response, file: file) { try await request($0) }
     }
 
     func submit(_ file: URL) async throws -> Job {
-        let (status, json) = try await upload(file, to: "v1/audio/transcriptions/jobs", extraFields: Self.agentChannel)
+        let (status, json) = try await upload(file, to: "v1/audio/transcriptions/jobs")
         guard status == 202, let id = json["id"] as? String, !id.isEmpty else {
             throw TranscriptionError.unreadableResponse
         }
@@ -126,7 +125,7 @@ struct TranscriptionClient {
     func finish(_ response: [String: Any], file: URL,
                 transcribeMono: (URL) async throws -> [String: Any]) async throws -> TranscriptionResult {
         if let labelled = Self.labelledTurns(in: response) {
-            return TranscriptionResult(turns: Self.coalesced(labelled), language: Self.language(in: response))
+            return TranscriptionResult(turns: Self.coalesced(Self.withNearestSpeaker(labelled)), language: Self.language(in: response))
         }
 
         var turns: [TranscriptionResult.Turn] = []
@@ -162,18 +161,17 @@ struct TranscriptionClient {
         await ConnectionCheck.run(settings, for: .transcription, session: session)
     }
 
-    private func request(_ file: URL, extraFields: [String: String]) async throws -> [String: Any] {
-        let (status, json) = try await upload(file, to: "v1/audio/transcriptions", extraFields: extraFields)
+    private func request(_ file: URL) async throws -> [String: Any] {
+        let (status, json) = try await upload(file, to: "v1/audio/transcriptions")
         guard status == 200 else { throw TranscriptionError.unreadableResponse }
         return json
     }
 
-    private func upload(_ file: URL, to path: String, extraFields: [String: String]) async throws -> (Int, [String: Any]) {
+    private func upload(_ file: URL, to path: String) async throws -> (Int, [String: Any]) {
         guard let url = URL.endpoint(path, on: settings.server) else { throw TranscriptionError.badServerURL }
         var fields = ["model": settings.model, "response_format": "verbose_json",
                       "timestamp_granularities[]": "segment"]
         if !settings.language.isEmpty { fields["language"] = settings.language }
-        fields.merge(extraFields) { $1 }
 
         let boundary = "digisensus-recorder-\(UUID().uuidString)"
         let body = FileManager.default.temporaryDirectory.appendingPathComponent("\(boundary).multipart")
@@ -227,12 +225,34 @@ struct TranscriptionClient {
         for key in ["dialogue", "segments"] {
             guard let items = response[key] as? [[String: Any]], !items.isEmpty,
                   items.allSatisfy({ $0["speaker"] is String }) else { continue }
+            var numbers: [String: Int] = [:]
             return items.compactMap { item in
-                let isMe = (item["speaker"] as? String)?.lowercased() == "agent"
-                return turn(from: item, channel: isMe ? .me : .them)
+                let label = (item["speaker"] as? String ?? "").lowercased()
+                guard label != "agent" else { return turn(from: item, channel: .me) }
+                guard var turn = turn(from: item, channel: .them) else { return nil }
+                if label.hasPrefix("speaker_") {
+                    turn.speaker = numbers[label] ?? numbers.count
+                    numbers[label] = turn.speaker
+                }
+                return turn
             }
         }
         return nil
+    }
+
+    private static func withNearestSpeaker(_ turns: [TranscriptionResult.Turn]) -> [TranscriptionResult.Turn] {
+        let known = turns.filter { $0.channel == .them && $0.speaker != nil }
+        guard !known.isEmpty else { return turns }
+        return turns.map { turn in
+            guard turn.channel == .them, turn.speaker == nil else { return turn }
+            var turn = turn
+            turn.speaker = known.min { gap($0, turn) < gap($1, turn) }?.speaker
+            return turn
+        }
+    }
+
+    private static func gap(_ a: TranscriptionResult.Turn, _ b: TranscriptionResult.Turn) -> Double {
+        max(0, max(a.start, b.start) - min(a.end, b.end))
     }
 
     private static func segments(in response: [String: Any], channel: TranscriptSegment.Channel) -> [TranscriptionResult.Turn] {
@@ -248,9 +268,9 @@ struct TranscriptionClient {
     private static func coalesced(_ turns: [TranscriptionResult.Turn]) -> [TranscriptionResult.Turn] {
         var result: [TranscriptionResult.Turn] = []
         for turn in turns {
-            if let last = result.last, last.channel == turn.channel,
+            if let last = result.last, last.channel == turn.channel, last.speaker == turn.speaker,
                turn.start - last.end <= 1.5, last.text.count + turn.text.count < 400 {
-                result[result.count - 1] = .init(channel: last.channel, start: last.start,
+                result[result.count - 1] = .init(channel: last.channel, speaker: last.speaker, start: last.start,
                                                  end: max(last.end, turn.end), text: last.text + " " + turn.text)
             } else {
                 result.append(turn)

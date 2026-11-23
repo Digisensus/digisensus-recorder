@@ -366,7 +366,8 @@ final class LibraryStore: ObservableObject {
                                    summarizeAfter: Bool?) throws {
         guard let id = recording.id else { return }
         let segments = result.turns.map {
-            TranscriptSegment(recordingId: id, channel: $0.channel, startTime: $0.start, endTime: $0.end, text: $0.text)
+            TranscriptSegment(recordingId: id, channel: $0.channel, speaker: $0.speaker,
+                              startTime: $0.start, endTime: $0.end, text: $0.text)
         }
         try database.saveTranscript(recordingID: id, segments: segments, language: result.language, model: model)
         Log.write(String(format: "transcribed %@: %d turns in %.1f s", recording.fileName,
@@ -394,6 +395,7 @@ final class LibraryStore: ObservableObject {
 
     func summarize(_ recording: Recording) {
         guard let id = recording.id, !summarizing.contains(id) else { return }
+        let recording = (try? database.recording(id: id)) ?? recording
         let segments = (try? database.segments(recordingID: id)) ?? []
         guard !segments.isEmpty else {
             summaryErrors[id] = String(localized: "Transcribe the recording first; the summary is made from the transcript.")
@@ -422,7 +424,8 @@ final class LibraryStore: ObservableObject {
             do {
                 let started = Date()
                 let result = try await client.summarize(segments, knownTags: knownTags, recordedAt: recording.startedAt,
-                                                        languageRule: SummaryLanguage.rule(for: SummaryLanguage.chosen))
+                                                        languageRule: SummaryLanguage.rule(for: SummaryLanguage.chosen),
+                                                        label: { recording.exportLabel($0, localized: false) })
                 try database.saveSummary(result, model: model, recordingID: id)
                 agreementRevision += 1
                 Log.write(String(format: "summarised %@ in %.1f s", recording.fileName, Date().timeIntervalSince(started)))
@@ -690,6 +693,15 @@ final class LibraryStore: ObservableObject {
             }
             addingToCalendar.remove(id)
             agreementRevision += 1
+        }
+    }
+
+    func setSpeakerName(_ name: String, number: Int, of recording: Recording) {
+        guard let id = recording.id else { return }
+        do {
+            try database.setSpeakerName(Speaker.cleanName(name), number: number, recordingID: id)
+        } catch {
+            Log.write("could not name a speaker of \(recording.fileName): \(error)")
         }
     }
 

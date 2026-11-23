@@ -67,13 +67,13 @@ struct TranscriptExport {
         "\(recording.startedAt.formatted(date: .long, time: .shortened)) · \(recording.durationText)"
     }
 
-    private static func speaker(_ segment: TranscriptSegment) -> String {
-        segment.channel == .me ? String(localized: "Me") : String(localized: "Them")
+    private func speaker(_ segment: TranscriptSegment) -> String {
+        recording.exportLabel(segment, localized: true)
     }
 
     private var text: String {
         var lines = [recording.heading, when, ""]
-        lines += segments.map { "[\(RecorderModel.clock($0.startTime))] \(Self.speaker($0)): \($0.text)" }
+        lines += segments.map { "[\(RecorderModel.clock($0.startTime))] \(speaker($0)): \($0.text)" }
         return lines.joined(separator: "\n") + "\n"
     }
 
@@ -94,14 +94,14 @@ struct TranscriptExport {
             lines.append("")
         }
         lines += ["## " + String(localized: "Transcript"), ""]
-        lines += segments.map { "**\(Self.speaker($0))** [\(RecorderModel.clock($0.startTime))]: \($0.text)  " }
+        lines += segments.map { "**\(speaker($0))** [\(RecorderModel.clock($0.startTime))]: \($0.text)  " }
         return lines.joined(separator: "\n") + "\n"
     }
 
     private var srt: String {
         segments.enumerated().map { index, segment in
             "\(index + 1)\n\(Self.srtClock(segment.startTime)) --> \(Self.srtClock(max(segment.endTime, segment.startTime + 0.5)))\n"
-                + "\(Self.speaker(segment)): \(segment.text)\n"
+                + "\(speaker(segment)): \(segment.text)\n"
         }.joined(separator: "\n")
     }
 
@@ -115,7 +115,7 @@ struct TranscriptExport {
         let header = [String(localized: "Time"), String(localized: "Speaker"), String(localized: "Text"),
                       String(localized: "Start seconds"), String(localized: "End seconds")]
         let rows = segments.map { segment in
-            [RecorderModel.clock(segment.startTime), Self.speaker(segment), segment.text,
+            [RecorderModel.clock(segment.startTime), speaker(segment), segment.text,
              String(format: "%.2f", segment.startTime), String(format: "%.2f", segment.endTime)]
         }
         return "\u{FEFF}" + ([header] + rows).map { $0.map(Self.csvField).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
@@ -130,7 +130,7 @@ struct TranscriptExport {
         var object: [String: Any] = [
             "title": recording.heading,
             "started_at": ISO8601DateFormatter().string(from: recording.startedAt),
-            "transcript": segments.map { ["speaker": $0.channel == .me ? "Me" : "Them", "start": $0.startTime, "end": $0.endTime, "text": $0.text] },
+            "transcript": segments.map { ["speaker": recording.exportLabel($0, localized: false), "start": $0.startTime, "end": $0.endTime, "text": $0.text] },
         ]
         object["duration_seconds"] = recording.duration
         object["language"] = recording.transcriptLanguage

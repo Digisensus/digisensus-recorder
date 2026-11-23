@@ -18,6 +18,7 @@ struct CallSummary: Equatable {
     var actions: [ActionItem] = []
     var tags: [String] = []
     var agreements: [Agreement] = []
+    var speakerNames: [String: String] = [:]
 }
 
 enum SummaryError: LocalizedError {
@@ -45,12 +46,15 @@ struct SummaryClient {
 
     private static let instructions = """
         You summarise recorded phone calls and meetings from their transcripts. The transcript labels \
-        the person who made the recording as "Me" and the other side as "Them". It comes from speech \
-        recognition, so expect misheard or duplicated words and read through them.
+        the person who made the recording as "Me" and the other side as "Them". When the other side \
+        had several people and speech recognition told their voices apart, they are "Speaker 1", \
+        "Speaker 2" and so on, and a name in place of a label is that person's known name. The \
+        transcript comes from speech recognition, so expect misheard or duplicated words and read \
+        through them.
 
         Answer with one JSON object and nothing else:
         {"topic": "...", "headline": "...", "summary": "...", "decisions": [], "actions": [], "tags": ["..."], \
-        "agreements": []}
+        "agreements": [], "speakers": {}}
         - "topic": 2 to 5 words naming the subject, like a title, with no final period.
         - "headline": exactly one sentence, at most 20 words, saying what the call was about.
         - "summary": at most 3 sentences covering the topic and how the call ended.
@@ -84,6 +88,10 @@ struct SummaryClient {
         timestamp of those words. Work the date out from the call date and the list \
         of days given below. Leave out anything without a definite day, like "sometime soon". Use \
         an empty list when there are none.
+        - "speakers": the names of the people labelled "Them" or "Speaker N", as {"Speaker 1": "Anna"}, \
+        only when the call makes a name clear, for example when they introduce themselves or someone \
+        greets them by name. Leave out anyone whose name is not clear and never guess. Use {} when \
+        there are none.
         Use only what the transcript says; if there is too little to summarise, say so in one short \
         sentence and leave the lists empty.
         """
@@ -91,10 +99,11 @@ struct SummaryClient {
     private static let transcriptCharacterLimit = 300_000
 
     func summarize(_ segments: [TranscriptSegment], knownTags: [String] = [], recordedAt: Date? = nil,
-                   languageRule: String = SummaryLanguage.rule(for: SummaryLanguage.matchesCall)) async throws -> CallSummary {
+                   languageRule: String = SummaryLanguage.rule(for: SummaryLanguage.matchesCall),
+                   label: (TranscriptSegment) -> String = { $0.channel == .me ? "Me" : "Them" }) async throws -> CallSummary {
         var transcript = segments.map { segment in
             let seconds = Int(segment.startTime)
-            let speaker = segment.channel == .me ? "Me" : "Them"
+            let speaker = label(segment)
             return String(format: "[%d:%02d] %@: %@", seconds / 60, seconds % 60, speaker, segment.text)
         }.joined(separator: "\n")
         if transcript.count > Self.transcriptCharacterLimit {
@@ -132,6 +141,7 @@ struct SummaryClient {
                 ["role": "user", "content": "Transcript:\n\(transcript)"],
             ],
         ]
+        guard settings.provider != .digisensus else { return [plain] }
         let tuned = plain.merging(["temperature": 0.2, "max_tokens": 3000]) { $1 }
         var attempts = [tuned, plain]
         if sendsChatTemplateHints {
@@ -151,7 +161,7 @@ struct SummaryClient {
     }
 
     private var sendsChatTemplateHints: Bool {
-        settings.provider == .digisensus || settings.servicePreset(for: .summary).place != .cloud
+        settings.servicePreset(for: .summary).place != .cloud
     }
 
     func checkConnection() async -> String {
@@ -230,7 +240,8 @@ struct SummaryClient {
                                    decisions: decisions(object["decisions"]),
                                    actions: actions(object["actions"], recordedAt: recordedAt),
                                    tags: uniqueTags(strings(object["tags"])),
-                                   agreements: agreements(object["agreements"], recordedAt: recordedAt))
+                                   agreements: agreements(object["agreements"], recordedAt: recordedAt),
+                                   speakerNames: speakerNames(object["speakers"]))
             }
         }
 
@@ -251,6 +262,17 @@ struct SummaryClient {
     private static func trimmed(_ value: Any?, limit: Int) -> String? {
         let text = String(clean(value as? String ?? "").prefix(limit))
         return text.isEmpty ? nil : text
+    }
+
+    private static func speakerNames(_ value: Any?) -> [String: String] {
+        let placeholders: Set<String> = ["me", "them", "you", "unknown", "null", "none", "n/a"]
+        var names: [String: String] = [:]
+        for (label, value) in (value as? [String: Any]) ?? [:] {
+            guard let name = (value as? String).flatMap(Speaker.cleanName),
+                  !placeholders.contains(name.lowercased()), !name.lowercased().hasPrefix("speaker") else { continue }
+            names[clean(label)] = name
+        }
+        return names.count > 8 ? [:] : names
     }
 
     private static func decisions(_ value: Any?) -> [Decision] {

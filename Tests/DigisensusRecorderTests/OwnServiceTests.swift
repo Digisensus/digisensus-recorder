@@ -72,6 +72,16 @@ final class OwnServiceURLProtocol: URLProtocol {
         })
     }
 
+    @Test func digisensusSummaryCarriesOnlyTheModelAndTheConversation() async throws {
+        OwnServiceURLProtocol.requests = []
+        OwnServiceURLProtocol.answers = [(200, summaryAnswer)]
+        var settings = SummarySettings()
+        settings.server = "https://recorder.example/v1"
+        _ = try await SummaryClient(settings: settings, session: OwnServiceURLProtocol.session).summarize(transcript)
+        let body = try #require(sentBodies().first)
+        #expect(Set(body.keys) == ["model", "messages"])
+    }
+
     @Test func localSummaryFirstAsksToSkipThinking() async throws {
         OwnServiceURLProtocol.requests = []
         OwnServiceURLProtocol.answers = [(400, "{}"), (400, "{}"), (400, #"{"error":{"message":"bad request"}}"#)]
@@ -178,5 +188,24 @@ final class OwnServiceURLProtocol: URLProtocol {
         }
         #expect(result.turns.map(\.channel) == [.them, .me])
         #expect(result.language == "english")
+    }
+    @Test func digisensusGetsNoServiceSwitchesFromTheApp() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("speakers-\(UUID().uuidString).ogg")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let encoder = try OggOpusEncoder(url: file, channels: 2, bitrate: RecordingFile.opusBitrate)
+        try [Float](repeating: 0, count: 48_000 * 2).withUnsafeBufferPointer { try encoder.append($0) }
+        try encoder.finish()
+
+        var settings = TranscriptionSettings()
+        settings.server = "https://recorder.example/v1"
+        OwnServiceURLProtocol.requests = []
+        OwnServiceURLProtocol.answers = [
+            (200, #"{"text":"","language":"lt","duration":1,"dialogue":[{"speaker":"speaker_0","start":0,"end":1,"text":"Labas"}]}"#),
+        ]
+        let result = try await TranscriptionClient(settings: settings, session: OwnServiceURLProtocol.session).transcribe(file)
+
+        let body = String(decoding: try #require(OwnServiceURLProtocol.requests.first).body.prefix(4096), as: UTF8.self)
+        #expect(!body.contains("diarize") && !body.contains("agent_channel"))
+        #expect(result.turns.map(\.speaker) == [0])
     }
 }

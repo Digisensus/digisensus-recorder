@@ -215,7 +215,9 @@ struct CallDetail: View {
             if draft.segments.isEmpty {
                 ScrollView { progressOrOffer(state) }
             } else {
-                TranscriptView(segments: draft.segments, player: player)
+                TranscriptView(segments: draft.segments, recording: recording, player: player) { number, name in
+                    library.setSpeakerName(name, number: number, of: recording)
+                }
             }
         case .notes:
             ZStack(alignment: .topLeading) {
@@ -384,7 +386,10 @@ private struct SummaryCard: View {
 
 private struct TranscriptView: View {
     let segments: [TranscriptSegment]
+    let recording: Recording
     @ObservedObject var player: PlayerModel
+    let name: (Int, String) -> Void
+    @State private var naming: Int64?
 
     var body: some View {
         ScrollView {
@@ -398,9 +403,7 @@ private struct TranscriptView: View {
                             .frame(width: 42, alignment: .leading)
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(segment.channel == .me ? "You" : "Them")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(segment.channel == .me ? Palette.you : Palette.them)
+                            speakerLabel(segment)
                             Text(segment.text)
                                 .font(.system(size: 14))
                                 .lineSpacing(3)
@@ -417,6 +420,75 @@ private struct TranscriptView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder private func speakerLabel(_ segment: TranscriptSegment) -> some View {
+        let label = Text(segment.channel == .me ? String(localized: "You")
+                         : recording.speakerLabel(segment, localized: true) ?? String(localized: "Them"))
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(segment.channel == .me ? Palette.you : Palette.them)
+        if let speaker = recording.speaker(of: segment) {
+            Button { naming = segment.id } label: {
+                HStack(spacing: 4) {
+                    label
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Palette.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Name this speaker")
+            .accessibilityHint("Name this speaker")
+            .popover(isPresented: Binding(get: { naming == segment.id && segment.id != nil },
+                                          set: { if !$0 { naming = nil } }), arrowEdge: .bottom) {
+                SpeakerNamePopover(speaker: speaker) { typed in
+                    name(speaker.number, typed)
+                    naming = nil
+                } cancel: {
+                    naming = nil
+                }
+            }
+        } else {
+            label
+        }
+    }
+}
+
+private struct SpeakerNamePopover: View {
+    let speaker: Speaker
+    let save: (String) -> Void
+    let cancel: () -> Void
+    @State private var typed: String
+
+    init(speaker: Speaker, save: @escaping (String) -> Void, cancel: @escaping () -> Void) {
+        self.speaker = speaker
+        self.save = save
+        self.cancel = cancel
+        _typed = State(initialValue: speaker.name ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Who is speaking?")
+                .font(.system(size: 13, weight: .semibold))
+            TextField("Speaker’s name", text: $typed, prompt: Text("Speaker \(speaker.number + 1)"))
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { save(typed) }
+            Text("The name replaces the label wherever this person speaks in this call.")
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Cancel", action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") { save(typed) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
     }
 }
 
