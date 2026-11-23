@@ -1,6 +1,6 @@
 # Digisensus Recorder: free call recorder and AI meeting notes for Mac
 
-**A free, open source call recorder and bot-free AI meeting note taker for Mac.** Record Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp and phone calls with no bot joining the meeting, then get transcripts that show who said what and AI meeting notes with the next steps.
+**A free, open source call recorder and bot-free AI meeting note taker for Mac.** Record Zoom, Google Meet, Microsoft Teams, FaceTime, WhatsApp and phone calls with no bot joining the meeting, then get transcripts that show who said what and AI meeting notes with the decisions and next steps. In a meeting with several participants each speaker is told apart, and you can give them names.
 
 Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and Fireflies, made by [Digisensus.com](https://digisensus.com).
 
@@ -25,6 +25,17 @@ Recordings stay on your Mac. An open source alternative to Granola, Otter.ai and
   <tr>
     <td align="center">Decisions, with who suggested and who agreed</td>
     <td align="center">Action items to tick off or send to your to-do app</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/speakers.png" alt="Meeting transcript with several participants: each speaker is identified, Anna is named and Speaker 2 is being given a name"></td>
+    <td><img src="docs/screenshots/transcript-search.png" alt="Search inside a call transcript: three matches highlighted, with the speakers' names beside each line"></td>
+  </tr>
+  <tr>
+    <td align="center">Meetings: every speaker told apart, with names you set</td>
+    <td align="center">Search inside a transcript</td>
   </tr>
 </table>
 
