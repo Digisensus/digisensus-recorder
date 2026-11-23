@@ -47,9 +47,9 @@
         <string>zh-Hant</string>
     </array>
     <key>CFBundleShortVersionString</key>
-    <string>1.4.0</string>
+    <string>1.5.0</string>
     <key>CFBundleVersion</key>
-    <string>114</string>
+    <string>115</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <!-- Over-the-air updates (Sparkle). The feed address comes from the app (it follows the
