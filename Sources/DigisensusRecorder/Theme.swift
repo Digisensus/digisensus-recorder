@@ -26,6 +26,8 @@ enum Palette {
     static let them = dynamic(0x9A4A0B, 0xE8A15F)
     static let youWave = dynamic(0x2F6BD8, 0x5B8DEF)
     static let themWave = dynamic(0xD9731F, 0xE8914A)
+    static let match = dynamic(0xFBE7A1, 0x5C4B17)
+    static let currentMatch = dynamic(0xF6C453, 0x9A7316)
 
     static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in

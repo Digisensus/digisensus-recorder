@@ -215,7 +215,7 @@ struct CallDetail: View {
             if draft.segments.isEmpty {
                 ScrollView { progressOrOffer(state) }
             } else {
-                TranscriptView(segments: draft.segments, recording: recording, player: player) { number, name in
+                TranscriptView(segments: draft.segments, recording: recording, player: player, play: play(from:)) { number, name in
                     library.setSpeakerName(name, number: number, of: recording)
                 }
             }
@@ -387,39 +387,192 @@ private struct SummaryCard: View {
 private struct TranscriptView: View {
     let segments: [TranscriptSegment]
     let recording: Recording
-    @ObservedObject var player: PlayerModel
+    let player: PlayerModel
+    let play: (TimeInterval) -> Void
     let name: (Int, String) -> Void
     @State private var naming: Int64?
+    @State private var query = ""
+    @State private var matches: [TranscriptMatch] = []
+    @State private var current = 0
+    @State private var spoken: Int?
+    @State private var isPlaying = false
+    @State private var following = true
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
-                ForEach(segments) { segment in
-                    HStack(alignment: .top, spacing: 14) {
-                        Text(RecorderModel.clock(segment.startTime))
-                            .font(.system(size: 12))
-                            .monospacedDigit()
-                            .foregroundStyle(Palette.tertiary)
-                            .frame(width: 42, alignment: .leading)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 3) {
-                            speakerLabel(segment)
-                            Text(segment.text)
-                                .font(.system(size: 14))
-                                .lineSpacing(3)
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
+        ScrollViewReader { proxy in
+            VStack(spacing: 10) {
+                searchBar(proxy)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(segments.indices, id: \.self) { index in
+                            row(index).id(index)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) { player.seek(to: segment.startTime) }
-                    .help("Double-click to play from here")
+                }
+                .onScrollPhaseChange { _, phase in
+                    if isPlaying, phase.isScrolling, phase != .animating { following = false }
+                }
+                .overlay(alignment: .bottom) {
+                    if isPlaying, !following, spoken != nil { followButton(proxy) }
                 }
             }
+            .onReceive(player.$currentTime) { time in
+                let line = time > 0 || player.isPlaying ? TranscriptSearch.spokenSegment(at: time, in: segments) : nil
+                guard line != spoken else { return }
+                spoken = line
+                if following, isPlaying { scroll(proxy, to: line, anchor: .top) }
+            }
+            .onReceive(player.$isPlaying) { playing in
+                guard playing != isPlaying else { return }
+                isPlaying = playing
+                if playing {
+                    following = true
+                    scroll(proxy, to: spoken, anchor: .top)
+                }
+            }
+            .onChange(of: query) {
+                findMatches()
+                if !matches.isEmpty { reveal(proxy) }
+            }
+            .onChange(of: segments) { findMatches() }
         }
+    }
+
+    private func row(_ index: Int) -> some View {
+        let segment = segments[index]
+        let isSpoken = index == spoken
+        return HStack(alignment: .top, spacing: 14) {
+            Button { start(at: segment.startTime) } label: {
+                Text(RecorderModel.clock(segment.startTime))
+                    .font(.system(size: 12, weight: isSpoken ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(isSpoken ? Palette.accent : Palette.tertiary)
+                    .frame(width: 42, alignment: .leading)
+                    .padding(.top, 2)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .help("Play from here")
+            .accessibilityHint("Play from here")
+            VStack(alignment: .leading, spacing: 3) {
+                speakerLabel(segment)
+                Text(highlighted(index))
+                    .font(.system(size: 14))
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSpoken ? Palette.accentTint : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { start(at: segment.startTime) }
+        .help("Double-click to play from here")
+    }
+
+    private func highlighted(_ index: Int) -> AttributedString {
+        let text = segments[index].text
+        var attributed = AttributedString(text)
+        for (number, match) in matches.enumerated() where match.segment == index {
+            guard let range = Range(match.range, in: attributed) else { continue }
+            attributed[range].backgroundColor = number == current ? Palette.currentMatch : Palette.match
+        }
+        return attributed
+    }
+
+    private func searchBar(_ proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 8) {
+            Button { searchFocused = true } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.tertiary)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("f")
+            .accessibilityHidden(true)
+            TextField("Search transcript", text: $query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .focused($searchFocused)
+                .onSubmit { step(1, proxy) }
+                .onExitCommand { query = "" }
+                .accessibilityLabel("Search transcript")
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(matches.isEmpty ? String(localized: "No matches") : String(localized: "\(current + 1) of \(matches.count)"))
+                    .font(.system(size: 12))
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.tertiary)
+                Button { step(-1, proxy) } label: {
+                    Image(systemName: "chevron.up").frame(width: 22, height: 22).contentShape(Rectangle())
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+                .help("Previous match")
+                .accessibilityLabel("Previous match")
+                Button { step(1, proxy) } label: {
+                    Image(systemName: "chevron.down").frame(width: 22, height: 22).contentShape(Rectangle())
+                }
+                .keyboardShortcut("g")
+                .help("Next match")
+                .accessibilityLabel("Next match")
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(Palette.tertiary)
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .card(radius: 8)
+    }
+
+    private func followButton(_ proxy: ScrollViewProxy) -> some View {
+        Button {
+            following = true
+            scroll(proxy, to: spoken, anchor: .top)
+        } label: {
+            Label("Follow playback", systemImage: "text.line.first.and.arrowtriangle.forward")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.onStrong)
+                .padding(.horizontal, 14)
+                .frame(height: 30)
+                .background(Palette.strong, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 12)
+    }
+
+    private func start(at time: TimeInterval) {
+        following = true
+        play(time)
+    }
+
+    private func findMatches() {
+        matches = TranscriptSearch.matches(of: query, in: segments)
+        current = matches.firstIndex { $0.segment >= (spoken ?? 0) } ?? 0
+    }
+
+    private func step(_ offset: Int, _ proxy: ScrollViewProxy) {
+        guard !matches.isEmpty else { return }
+        current = (current + offset + matches.count) % matches.count
+        reveal(proxy)
+    }
+
+    private func reveal(_ proxy: ScrollViewProxy) {
+        following = false
+        scroll(proxy, to: matches[current].segment, anchor: .center)
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy, to line: Int?, anchor: UnitPoint) {
+        guard let line else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(line, anchor: anchor) }
     }
 
     @ViewBuilder private func speakerLabel(_ segment: TranscriptSegment) -> some View {
