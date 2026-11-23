@@ -348,7 +348,7 @@ private struct PermissionStatus: View {
                         permissions.request(kind)
                     } label: {
                         HStack(spacing: 4) {
-                            Text(kind.isRequired ? "Not allowed · Fix" : "Off · Allow")
+                            Text(kind.isRequired ? "Not allowed · Fix" : "Off · Set Up")
                             Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                         }
                         .font(.system(size: 12, weight: .semibold))
@@ -359,7 +359,7 @@ private struct PermissionStatus: View {
                         .background(kind.isRequired ? Palette.recordTint : Palette.fill, in: RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open System Settings to allow \(kind.name)")
+                    .accessibilityLabel(kind.isRequired ? "Fix \(kind.name)…" : "Set Up \(kind.name)…")
                 }
                 .frame(height: 28)
             }

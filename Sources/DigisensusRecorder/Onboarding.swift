@@ -86,6 +86,7 @@ struct OnboardingView: View {
     @ObservedObject var flow: OnboardingFlow
     @ObservedObject var model: RecorderModel
     @ObservedObject var permissions: Permissions
+    @State private var askingPermissions = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -136,15 +137,15 @@ struct OnboardingView: View {
                 Text("Takes about a minute").font(.system(size: 13)).foregroundStyle(Palette.tertiary)
             }
             Spacer()
-            if flow.step == 3 {
+            if flow.step == 3, let permissionsHint {
                 Text(permissionsHint).font(.system(size: 13)).foregroundStyle(Palette.tertiary)
             }
             primaryButton
         }
     }
 
-    private var permissionsHint: LocalizedStringResource {
-        guard permissions.requiredGranted else { return "You can also allow these later" }
+    private var permissionsHint: LocalizedStringResource? {
+        guard permissions.requiredGranted else { return nil }
         if case .done(true, true) = model.audioTest { return "All set" }
         return "Test recording to be sure"
     }
@@ -161,9 +162,17 @@ struct OnboardingView: View {
             .buttonStyle(StrongButtonStyle())
             .keyboardShortcut(.defaultAction)
         case 3:
-            Button("Continue") { flow.step += 1 }
-                .buttonStyle(StrongButtonStyle(fill: permissions.requiredGranted ? Palette.strong : Palette.tertiary))
-                .keyboardShortcut(.defaultAction)
+            Button("Continue") {
+                guard !permissions.requiredAsked else { flow.step += 1; return }
+                askingPermissions = true
+                Task {
+                    await permissions.askRequired()
+                    askingPermissions = false
+                }
+            }
+            .buttonStyle(StrongButtonStyle())
+            .keyboardShortcut(.defaultAction)
+            .disabled(askingPermissions)
         case 4:
             Button(flow.aiChoice == .skip ? "Skip for Now" : "Continue") { flow.step += 1 }
                 .buttonStyle(StrongButtonStyle())
@@ -399,7 +408,7 @@ private struct PermissionsStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Allow recording").font(.system(size: 26, weight: .bold)).tracking(-0.5)
+                Text("Permissions").font(.system(size: 26, weight: .bold)).tracking(-0.5)
                 Text("A few permissions, then a quick test. The app records audio only, never your screen.")
                     .font(.system(size: 14))
                     .foregroundStyle(Palette.secondary)
@@ -407,21 +416,21 @@ private struct PermissionsStep: View {
             VStack(spacing: 0) {
                 row(.microphone, symbol: "mic", ink: Palette.accent, tint: Palette.accentTint,
                     title: "Microphone", tag: "required", detail: "Records your side of the conversation.",
-                    action: "Allow")
+                    action: "Open Settings")
                 Divider()
                 row(.systemAudio, symbol: "speaker.wave.2", ink: Palette.dynamic(0xB25E14, 0xF0A35E), tint: Palette.dynamic(0xFDF1E6, 0x45331F),
                     title: "System Audio Recording", tag: "required",
                     detail: "Records the other side from the calling app.",
-                    action: permissions.systemAudioRefused ? "Open Settings" : "Allow")
+                    action: "Open Settings")
                 Divider()
                 row(.notifications, symbol: "bell", ink: Palette.secondary, tint: Palette.fill,
                     title: "Notifications", tag: "recommended",
-                    detail: "Messages from Digisensus, and recordings started by an AI agent.", action: "Allow")
+                    detail: "Messages from Digisensus, and recordings started by an AI agent.", action: "Continue")
                 Divider()
                 row(.meetingNames, symbol: "globe", ink: Palette.secondary, tint: Palette.fill,
                     title: "Browser meeting names", tag: "optional",
                     detail: "Shows the meeting app, like Zoom or Teams, instead of the browser's name.",
-                    action: permissions.meetingNamesRefused ? "Open Settings" : "Allow")
+                    action: permissions.meetingNamesRefused ? "Open Settings" : "Continue")
             }
             .card()
             testCard
@@ -452,8 +461,10 @@ private struct PermissionsStep: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.good)
             } else if kind.isRequired {
-                Button(action) { permissions.request(kind) }
-                    .buttonStyle(StrongButtonStyle(height: 32))
+                if permissions.wasAsked(kind) {
+                    Button(action) { permissions.openSettings(for: kind) }
+                        .buttonStyle(StrongButtonStyle(height: 32))
+                }
             } else {
                 Button(action) { permissions.request(kind) }
                     .buttonStyle(StrongButtonStyle(fill: Palette.card, ink: Palette.ink, height: 32))

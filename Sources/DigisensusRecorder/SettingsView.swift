@@ -130,7 +130,7 @@ private struct GeneralSettings: View {
                     }
                     Spacer()
                     if let missing = permissions.missing.first(where: \.isRequired) ?? permissions.missing.first {
-                        Button("Allow \(missing.name)…") { permissions.request(missing) }
+                        Button(missing.isRequired ? "Fix \(missing.name)…" : "Set Up \(missing.name)…") { permissions.request(missing) }
                     } else {
                         Text("All allowed").font(.caption).foregroundStyle(.secondary)
                     }

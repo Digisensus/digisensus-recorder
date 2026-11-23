@@ -33,6 +33,7 @@ final class Permissions: ObservableObject {
     @Published private(set) var systemAudio = false
     @Published private(set) var notifications = false
     @Published private(set) var systemAudioRefused = false
+    @Published private(set) var requiredAsked = false
     @Published private(set) var meetingNames = false
     @Published private(set) var meetingNamesRefused = false
 
@@ -75,10 +76,12 @@ final class Permissions: ObservableObject {
 
     func refresh() {
         if Self.demo {
-            (microphone, systemAudio, notifications, meetingNames) = (true, true, true, true)
+            (microphone, systemAudio, notifications, meetingNames, requiredAsked) = (true, true, true, true, true)
             return
         }
         microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        let asked = AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined && SystemAudioAccess.wasRequested
+        if asked != requiredAsked { requiredAsked = asked }
         systemAudio = SystemAudioAccess.lastKnown == .granted
         let refused = SystemAudioAccess.wasRequested && SystemAudioAccess.lastKnown == .denied
         if refused != systemAudioRefused { systemAudioRefused = refused }
@@ -135,6 +138,24 @@ final class Permissions: ObservableObject {
     func stopWatching() {
         poll?.invalidate()
         poll = nil
+    }
+
+    func wasAsked(_ kind: Kind) -> Bool {
+        switch kind {
+        case .microphone: return AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined
+        case .systemAudio: return SystemAudioAccess.wasRequested
+        case .notifications, .meetingNames: return true
+        }
+    }
+
+    func askRequired() async {
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+        }
+        if !SystemAudioAccess.wasRequested {
+            _ = await SystemAudioAccess.check()
+        }
+        refresh()
     }
 
     func request(_ kind: Kind) {
